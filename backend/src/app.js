@@ -10,6 +10,9 @@ import morgan from "morgan";
 
 import logger from "./config/logger.js";
 import db from "./models/index.js";
+import authRoutes from "./routes/authRoutes.js";
+import rfidRoutes from "./routes/rfidRoutes.js";
+import apiKeyRoutes from "./routes/apiKeyRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,6 +50,11 @@ app.use(limiter);
 app.get("/", (req, res) => {
   res.status(200).json({ message: "TagSakay API is running." });
 });
+
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/rfid", rfidRoutes);
+app.use("/api/keys", apiKeyRoutes);
 
 // Database connection and table sync
 const connectAndSyncDB = async () => {
