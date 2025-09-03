@@ -1,0 +1,45 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "TagSakay RFID Tricycle Queue Management System",
+  "main": "src/app.js",
+  "scripts": {
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js",
+    "db": "node dbcli.js",
+    "db:seed": "node dbcli.js seed",
+    "db:seed:reset": "node dbcli.js seed:reset",
+    "db:sync": "node dbcli.js sync",
+    "db:sync:force": "node dbcli.js sync:force",
+    "db:sync:alter": "node dbcli.js sync:alter",
+    "db:check": "node dbcli.js check"
+  },
+  "keywords": [
+    "rfid",
+    "queue",
+    "management",
+    "tricycle"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "joi": "^18.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.30.1",
+    "morgan": "^1.10.1",
+    "pg": "^8.16.3",
+    "sequelize": "^6.37.7",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.34.0",
+    "nodemon": "^3.1.10"
+  }
+}
