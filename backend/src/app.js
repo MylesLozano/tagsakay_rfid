@@ -1,0 +1,85 @@
+import dotenv from "dotenv";
+// Always load environment variables from backend .env
+dotenv.config();
+
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import morgan from "morgan";
+
+import logger from "./config/logger.js";
+import db from "./models/index.js";
+import authRoutes from "./routes/authRoutes.js";
+import rfidRoutes from "./routes/rfidRoutes.js";
+import apiKeyRoutes from "./routes/apiKeyRoutes.js";
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Setup morgan to stream to winston
+const stream = {
+  // Use the http level from winston
+  write: (message) => logger.http(message.trim()),
+};
+
+const morganMiddleware = morgan(
+  // Define message format string.
+  ":method :url :status :res[content-length] - :response-time ms",
+  // Options: in this case, stream to winston
+  { stream }
+);
+
+// Middleware
+app.use(morganMiddleware);
+app.use(cors());
+app.use(helmet());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(limiter);
+
+// Health check route
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "TagSakay API is running." });
+});
+
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/rfid", rfidRoutes);
+app.use("/api/keys", apiKeyRoutes);
+
+// Database connection and table sync
+const connectAndSyncDB = async () => {
+  try {
+    // Use non-destructive sync - won't try to alter existing tables/columns
+    // For major schema changes, use migrations instead of sync
+    await db.sequelize.sync();
+    logger.info(
+      "Database connection has been established and models were synchronized."
+    );
+  } catch (error) {
+    logger.error("Unable to connect to or sync the database:", error);
+    process.exit(1);
+  }
+};
+
+const startServer = async () => {
+  await connectAndSyncDB();
+  const server = app.listen(PORT, () => {
+    const actualPort = server.address().port;
+    logger.info(`Server is running on port ${actualPort}`);
+  });
+  return server;
+};
+
+startServer();
+
+export { app, startServer, connectAndSyncDB };
