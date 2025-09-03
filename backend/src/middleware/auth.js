@@ -6,10 +6,12 @@ import jwt from "jsonwebtoken";
  * @returns {String} JWT token
  */
 export const generateToken = (user) => {
+  const expiresIn =
+    process.env.JWT_EXPIRES_IN || process.env.JWT_EXPIRE || "1h";
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN }
+    { expiresIn }
   );
 };
 

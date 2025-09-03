@@ -35,7 +35,9 @@ const ApiKey = sequelize.define(
       comment: "API key prefix for identification purposes",
     },
     permissions: {
-      type: DataTypes.ARRAY(DataTypes.STRING),
+      // Use JSON for cross-dialect compatibility (SQLite doesn't support ARRAY)
+      type: DataTypes.JSON,
+      allowNull: false,
       defaultValue: ["scan"],
       comment: "Array of permissions granted to this API key",
     },
@@ -50,7 +52,7 @@ const ApiKey = sequelize.define(
       comment: "Whether this API key is currently active",
     },
     createdBy: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: false,
       comment: "ID of the user who created this API key",
     },

@@ -1,8 +1,6 @@
 import { Sequelize } from "sequelize";
 import dotenv from "dotenv";
-import path from "path";
-
-// Load environment variables from the backend .env file
+// Always load .env for runtime; test env no longer used
 dotenv.config();
 
 const sequelize = new Sequelize(

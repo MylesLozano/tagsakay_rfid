@@ -6,7 +6,13 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "db": "node dbcli.js",
+    "db:seed": "node dbcli.js seed",
+    "db:seed:reset": "node dbcli.js seed:reset",
+    "db:sync": "node dbcli.js sync",
+    "db:sync:force": "node dbcli.js sync:force",
+    "db:sync:alter": "node dbcli.js sync:alter",
+    "db:check": "node dbcli.js check"
   },
   "keywords": [
     "rfid",

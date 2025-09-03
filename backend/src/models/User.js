@@ -27,6 +27,10 @@ const User = sequelize.define("User", {
     type: DataTypes.ENUM("admin", "superadmin", "driver"),
     defaultValue: "driver",
   },
+  isActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
   rfidTag: {
     type: DataTypes.STRING,
     unique: true,

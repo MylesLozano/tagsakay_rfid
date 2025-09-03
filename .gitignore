@@ -31,6 +31,10 @@ lerna-debug.log*
 *.sln
 *.sw?
 
+# Test coverage
+coverage/
+/backend/coverage/
+
 # OS generated files
 .DS_Store
 Thumbs.db

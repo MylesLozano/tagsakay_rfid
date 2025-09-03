@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-// Load environment variables from backend .env file
+// Always load environment variables from backend .env
 dotenv.config();
 
 import express from "express";
@@ -59,9 +59,9 @@ app.use("/api/keys", apiKeyRoutes);
 // Database connection and table sync
 const connectAndSyncDB = async () => {
   try {
-    // The { alter: true } option checks the current state of the table in the database
-    // and then performs the necessary changes in the table to make it match the model.
-    await db.sequelize.sync({ alter: true });
+    // Use non-destructive sync - won't try to alter existing tables/columns
+    // For major schema changes, use migrations instead of sync
+    await db.sequelize.sync();
     logger.info(
       "Database connection has been established and models were synchronized."
     );
@@ -73,11 +73,13 @@ const connectAndSyncDB = async () => {
 
 const startServer = async () => {
   await connectAndSyncDB();
-  app.listen(PORT, () => {
-    logger.info(`Server is running on port ${PORT}`);
+  const server = app.listen(PORT, () => {
+    const actualPort = server.address().port;
+    logger.info(`Server is running on port ${actualPort}`);
   });
+  return server;
 };
 
 startServer();
 
-export default app;
+export { app, startServer, connectAndSyncDB };

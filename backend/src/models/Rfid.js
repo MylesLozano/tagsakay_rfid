@@ -12,11 +12,11 @@ const Rfid = sequelize.define(
     tagId: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      // unique constraint is defined in indexes below
       comment: "Unique identifier from the RFID tag",
     },
     userId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: true,
       comment: "User associated with this RFID tag (if any)",
     },
@@ -36,12 +36,12 @@ const Rfid = sequelize.define(
       comment: "ID of the device that last scanned this tag",
     },
     registeredBy: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: false,
       comment: "ID of the admin user who registered this tag",
     },
     metadata: {
-      type: DataTypes.JSONB,
+      type: DataTypes.JSON,
       defaultValue: {},
       comment: "Additional metadata for the RFID tag",
     },

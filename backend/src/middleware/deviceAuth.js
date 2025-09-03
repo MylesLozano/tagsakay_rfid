@@ -56,7 +56,12 @@ export const authenticateApiKey = async (req, res, next) => {
     const requiredPermission = req.originalUrl.includes("/scan")
       ? "scan"
       : "manage";
-    if (!apiKey.permissions.includes(requiredPermission)) {
+    const perms = Array.isArray(apiKey.permissions)
+      ? apiKey.permissions
+      : typeof apiKey.permissions === "string"
+      ? [apiKey.permissions]
+      : [];
+    if (!perms.includes(requiredPermission)) {
       logger.warn(
         `API key authentication failed: Insufficient permissions for ${requiredPermission}`
       );

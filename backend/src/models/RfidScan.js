@@ -20,7 +20,7 @@ const RfidScan = sequelize.define(
       comment: "ID of the device that performed the scan",
     },
     userId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: true,
       comment: "User associated with the RFID tag (if any)",
     },
@@ -53,7 +53,7 @@ const RfidScan = sequelize.define(
       comment: "Status of the scan operation",
     },
     metadata: {
-      type: DataTypes.JSONB,
+      type: DataTypes.JSON,
       defaultValue: {},
       comment: "Additional metadata for the scan event",
     },
