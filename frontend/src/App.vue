@@ -1,9 +1,29 @@
 <script setup lang="ts">
-import { RouterView } from "vue-router";
+import { RouterView, useRouter } from "vue-router";
+import { ref, watchEffect } from "vue";
 import Navbar from "./components/Navbar.vue";
 import authService from "./services/auth";
 
-const isLoggedIn = authService.isLoggedIn();
+const router = useRouter();
+const isLoggedIn = ref(authService.isLoggedIn());
+
+// Listen for changes in localStorage to update isLoggedIn reactively
+window.addEventListener("storage", () => {
+  isLoggedIn.value = authService.isLoggedIn();
+});
+
+// Watch for route changes and update isLoggedIn
+watchEffect(() => {
+  isLoggedIn.value = authService.isLoggedIn();
+  // If not logged in and not on login or register page, redirect to login
+  if (
+    !isLoggedIn.value &&
+    router.currentRoute.value.path !== "/login" &&
+    router.currentRoute.value.path !== "/register"
+  ) {
+    router.push("/login");
+  }
+});
 </script>
 
 <template>

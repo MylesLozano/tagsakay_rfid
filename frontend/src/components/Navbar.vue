@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { ref, watchEffect } from "vue";
 import authService from "../services/auth";
 
-const router = useRouter();
 const user = ref(authService.getUser());
 const isAdmin = ref(authService.isAdmin());
 
+// Update user info reactively
+watchEffect(() => {
+  user.value = authService.getUser();
+  isAdmin.value = authService.isAdmin();
+});
+
 const logout = () => {
   authService.logout();
-  router.push("/login");
+  user.value = null;
+  isAdmin.value = false;
+  // After logout, App.vue will handle redirect and navbar hiding
 };
 </script>
 

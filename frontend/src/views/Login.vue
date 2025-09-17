@@ -58,29 +58,35 @@ const login = async () => {
 
         <form @submit.prevent="login" class="space-y-6">
           <div class="form-control w-full">
-            <label class="label">
+            <label class="label" for="email">
               <span class="label-text text-base font-medium">Email</span>
             </label>
             <input
               type="email"
+              id="email"
+              name="email"
               v-model="credentials.email"
               placeholder="email@example.com"
               class="input input-bordered input-primary w-full"
               required
+              autocomplete="username"
             />
           </div>
 
           <div class="form-control w-full">
-            <label class="label">
+            <label class="label" for="password">
               <span class="label-text text-base font-medium">Password</span>
             </label>
             <div class="relative">
               <input
                 :type="showPassword ? 'text' : 'password'"
+                id="password"
+                name="password"
                 v-model="credentials.password"
                 placeholder="Password"
                 class="input input-bordered input-primary w-full pr-10"
                 required
+                autocomplete="current-password"
               />
               <button
                 type="button"
@@ -127,11 +133,11 @@ const login = async () => {
                 </svg>
               </button>
             </div>
-            <label class="label justify-end">
+            <div class="label justify-end mt-3">
               <a href="#" class="label-text-alt link link-hover text-primary"
                 >Forgot password?</a
               >
-            </label>
+            </div>
           </div>
 
           <div class="card-actions justify-end mt-8">
