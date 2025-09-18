@@ -1,6 +1,8 @@
 import { User, Rfid, RfidScan } from "../models/index.js";
 import logger from "../config/logger.js";
 import { Op } from "sequelize";
+import { sequelize } from "../config/database.js";
+import moment from "moment";
 
 /**
  * Handle RFID scan from ESP32 device
@@ -360,6 +362,137 @@ export const updateRfidStatus = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error updating RFID status",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get weekly RFID scan statistics
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const getWeeklyStats = async (req, res) => {
+  try {
+    // Get the start of the week (7 days ago)
+    const startDate = moment().subtract(6, "days").startOf("day").toDate();
+
+    // Query for daily scan counts for the past 7 days
+    const stats = await RfidScan.findAll({
+      attributes: [
+        [sequelize.fn("date_trunc", "day", sequelize.col("scanTime")), "day"],
+        [sequelize.fn("count", sequelize.col("id")), "count"],
+      ],
+      where: {
+        scanTime: {
+          [Op.gte]: startDate,
+        },
+        status: "success",
+      },
+      group: [sequelize.fn("date_trunc", "day", sequelize.col("scanTime"))],
+      order: [
+        [sequelize.fn("date_trunc", "day", sequelize.col("scanTime")), "ASC"],
+      ],
+    });
+
+    // Create a map to ensure we have entries for all days, even with zero count
+    const daysMap = {};
+
+    // Initialize with all days in the past week
+    for (let i = 0; i < 7; i++) {
+      const day = moment().subtract(6 - i, "days");
+      daysMap[day.format("YYYY-MM-DD")] = {
+        label: day.format("dddd"), // Day name
+        count: 0,
+      };
+    }
+
+    // Fill in actual counts
+    stats.forEach((stat) => {
+      const day = moment(stat.dataValues.day).format("YYYY-MM-DD");
+      if (daysMap[day]) {
+        daysMap[day].count = parseInt(stat.dataValues.count, 10);
+      }
+    });
+
+    // Convert map to array
+    const result = Object.values(daysMap);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    logger.error(`Error retrieving weekly RFID stats: ${error.message}`, {
+      error,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving weekly RFID statistics",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get monthly RFID scan statistics
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const getMonthlyStats = async (req, res) => {
+  try {
+    // Get the start of 6 months ago
+    const startDate = moment().subtract(5, "months").startOf("month").toDate();
+
+    // Query for monthly scan counts for the past 6 months
+    const stats = await RfidScan.findAll({
+      attributes: [
+        [
+          sequelize.fn("date_trunc", "month", sequelize.col("scanTime")),
+          "month",
+        ],
+        [sequelize.fn("count", sequelize.col("id")), "count"],
+      ],
+      where: {
+        scanTime: {
+          [Op.gte]: startDate,
+        },
+        status: "success",
+      },
+      group: [sequelize.fn("date_trunc", "month", sequelize.col("scanTime"))],
+      order: [
+        [sequelize.fn("date_trunc", "month", sequelize.col("scanTime")), "ASC"],
+      ],
+    });
+
+    // Create a map to ensure we have entries for all months, even with zero count
+    const monthsMap = {};
+
+    // Initialize with all months in the past 6 months
+    for (let i = 0; i < 6; i++) {
+      const month = moment().subtract(5 - i, "months");
+      monthsMap[month.format("YYYY-MM")] = {
+        label: month.format("MMMM"), // Month name
+        count: 0,
+      };
+    }
+
+    // Fill in actual counts
+    stats.forEach((stat) => {
+      const month = moment(stat.dataValues.month).format("YYYY-MM");
+      if (monthsMap[month]) {
+        monthsMap[month].count = parseInt(stat.dataValues.count, 10);
+      }
+    });
+
+    // Convert map to array
+    const result = Object.values(monthsMap);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    logger.error(`Error retrieving monthly RFID stats: ${error.message}`, {
+      error,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving monthly RFID statistics",
       error: error.message,
     });
   }

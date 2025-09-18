@@ -55,6 +55,16 @@ const authService = {
   logout(): void {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+
+    // Dispatch storage event to notify all components
+    window.dispatchEvent(new Event("storage"));
+
+    // Clear any session cookies just in case
+    document.cookie.split(";").forEach(function (c) {
+      document.cookie = c
+        .replace(/^ +/, "")
+        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
   },
 
   saveUserData(data: AuthResponse): void {

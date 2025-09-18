@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, watchEffect } from "vue";
+import { useRouter } from "vue-router";
 import authService from "../services/auth";
 
+const router = useRouter();
 const user = ref(authService.getUser());
 const isAdmin = ref(authService.isAdmin());
 
@@ -15,7 +17,12 @@ const logout = () => {
   authService.logout();
   user.value = null;
   isAdmin.value = false;
-  // After logout, App.vue will handle redirect and navbar hiding
+
+  // Explicitly navigate to login page
+  router.push("/login");
+
+  // Force page refresh to ensure all reactive state is updated
+  window.dispatchEvent(new Event("storage"));
 };
 </script>
 

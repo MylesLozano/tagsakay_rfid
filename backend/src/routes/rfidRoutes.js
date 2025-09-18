@@ -4,6 +4,8 @@ import {
   registerRfid,
   getRfidInfo,
   updateRfidStatus,
+  getWeeklyStats,
+  getMonthlyStats,
 } from "../controllers/rfidController.js";
 import { authenticateApiKey, rfidRateLimit } from "../middleware/deviceAuth.js";
 import { authenticateToken, authorizeRole } from "../middleware/auth.js";
@@ -26,6 +28,20 @@ router.put(
   authenticateToken,
   authorizeRole(["admin"]),
   updateRfidStatus
+);
+
+// RFID Statistics routes
+router.get(
+  "/stats/weekly",
+  authenticateToken,
+  authorizeRole(["admin", "staff"]),
+  getWeeklyStats
+);
+router.get(
+  "/stats/monthly",
+  authenticateToken,
+  authorizeRole(["admin", "staff"]),
+  getMonthlyStats
 );
 
 export default router;
