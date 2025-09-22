@@ -9,7 +9,8 @@ import logger from "../config/logger.js";
  */
 export const createApiKey = async (req, res) => {
   try {
-    const { name, deviceId, description, permissions } = req.body;
+    const { name, deviceId, description, permissions, metadata, type } =
+      req.body;
 
     if (!name || !deviceId) {
       return res.status(400).json({
@@ -37,6 +38,8 @@ export const createApiKey = async (req, res) => {
       permissions: permissions || ["scan"],
       createdBy: req.user.id,
       lastUsed: null,
+      metadata: metadata || {},
+      type: type || "device",
     });
 
     // Only return the full API key once during creation
@@ -52,6 +55,8 @@ export const createApiKey = async (req, res) => {
         apiKey: `${prefix}_${apiKey}`, // This full key will only be shown once
         permissions: newApiKey.permissions,
         createdAt: newApiKey.createdAt,
+        metadata: newApiKey.metadata,
+        type: newApiKey.type,
       },
     });
   } catch (error) {
@@ -81,6 +86,8 @@ export const listApiKeys = async (req, res) => {
         "createdAt",
         "lastUsed",
         "isActive",
+        "metadata",
+        "type",
       ],
       order: [["createdAt", "DESC"]],
     });
@@ -108,7 +115,7 @@ export const listApiKeys = async (req, res) => {
 export const updateApiKey = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, permissions, isActive } = req.body;
+    const { name, description, permissions, isActive, metadata } = req.body;
 
     const apiKey = await ApiKey.findByPk(id);
 
@@ -124,6 +131,10 @@ export const updateApiKey = async (req, res) => {
     if (description !== undefined) apiKey.description = description;
     if (permissions !== undefined) apiKey.permissions = permissions;
     if (isActive !== undefined) apiKey.isActive = isActive;
+    if (metadata !== undefined) {
+      // Merge metadata rather than replacing completely
+      apiKey.metadata = { ...apiKey.metadata, ...metadata };
+    }
 
     await apiKey.save();
 
@@ -137,6 +148,8 @@ export const updateApiKey = async (req, res) => {
         prefix: apiKey.prefix,
         permissions: apiKey.permissions,
         isActive: apiKey.isActive,
+        metadata: apiKey.metadata,
+        type: apiKey.type,
         updatedAt: apiKey.updatedAt,
       },
     });

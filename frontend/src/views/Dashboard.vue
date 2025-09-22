@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import authService from "../services/auth";
 import type { User } from "../services/auth";
 import RfidChart from "../components/RfidChart.vue";
+import RfidDeviceStatus from "../components/RfidDeviceStatus.vue";
 import { Line, Pie, Bar } from "vue-chartjs";
 import {
   Chart as ChartJS,
@@ -425,9 +426,16 @@ onMounted(async () => {
             </div>
           </div>
 
+          <!-- RFID Device Status Component -->
+          <div
+            class="bg-base-200 rounded-lg shadow-md lg:col-span-1 lg:row-span-1 p-0 overflow-hidden"
+          >
+            <RfidDeviceStatus />
+          </div>
+
           <!-- RFID Status -->
           <div
-            class="bg-base-200 rounded-lg p-6 shadow-md lg:col-span-1 lg:row-span-2"
+            class="bg-base-200 rounded-lg p-6 shadow-md lg:col-span-3 lg:row-span-1"
           >
             <div class="flex items-center mb-4">
               <svg

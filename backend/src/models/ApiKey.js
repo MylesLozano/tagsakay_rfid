@@ -56,6 +56,18 @@ const ApiKey = sequelize.define(
       allowNull: false,
       comment: "ID of the user who created this API key",
     },
+    metadata: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: {},
+      comment: "Additional metadata about this device (location, type, etc.)",
+    },
+    type: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "device",
+      comment: "Type of API key (device, service, etc.)",
+    },
   },
   {
     timestamps: true,

@@ -13,6 +13,7 @@ import db from "./models/index.js";
 import authRoutes from "./routes/authRoutes.js";
 import rfidRoutes from "./routes/rfidRoutes.js";
 import apiKeyRoutes from "./routes/apiKeyRoutes.js";
+import deviceRoutes from "./routes/deviceRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -55,6 +56,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/rfid", rfidRoutes);
 app.use("/api/keys", apiKeyRoutes);
+app.use("/api/devices", deviceRoutes);
 
 // Database connection and table sync
 const connectAndSyncDB = async () => {

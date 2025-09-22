@@ -5,6 +5,14 @@ export interface ScanStats {
   count: number;
 }
 
+export interface DeviceStatus {
+  id: string;
+  name: string;
+  lastActive: string;
+  status: "online" | "offline";
+  location?: string;
+}
+
 const rfidStatsService = {
   /**
    * Get RFID scan statistics by day for the last 7 days
@@ -29,6 +37,20 @@ const rfidStatsService = {
     } catch (error) {
       console.error("Error fetching monthly RFID stats:", error);
       return [];
+    }
+  },
+
+  /**
+   * Get connected RFID devices status
+   * Shows which ESP32 devices are currently connected
+   */
+  async getConnectedDevices(): Promise<DeviceStatus[]> {
+    try {
+      const response = await api.get("/devices/active");
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching connected RFID devices:", error);
+      return []; // Return empty array if error occurs
     }
   },
 };
