@@ -47,6 +47,45 @@ const rfidService = {
     const response = await apiClient.put(`/rfid/${id}/status`, { isActive });
     return response.data;
   },
+
+  async getUnregisteredCards() {
+    try {
+      const response = await apiClient.get("/rfid/unregistered");
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch unregistered cards:", error);
+      return { data: [] }; // Return empty array on error
+    }
+  },
+
+  async getAllRfidCards() {
+    try {
+      const response = await apiClient.get("/rfid");
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch all RFID cards:", error);
+      return { data: [] }; // Return empty array on error
+    }
+  },
+
+  async checkRecentScan(tagId: string) {
+    const response = await apiClient.get(`/rfid/check-recent-scan/${tagId}`);
+    return response.data;
+  },
+
+  async getRecentUnregisteredScans() {
+    try {
+      const response = await apiClient.get("/rfid/scans/unregistered");
+      return response.data;
+    } catch (error) {
+      console.error("Failed to fetch recent unregistered scans:", error);
+      // Return a default structure instead of throwing error to prevent component crashing
+      return {
+        success: false,
+        data: [],
+      };
+    }
+  },
 };
 
 export default rfidService;

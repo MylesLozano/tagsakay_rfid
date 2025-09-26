@@ -14,6 +14,7 @@ import authRoutes from "./routes/authRoutes.js";
 import rfidRoutes from "./routes/rfidRoutes.js";
 import apiKeyRoutes from "./routes/apiKeyRoutes.js";
 import deviceRoutes from "./routes/deviceRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -57,6 +58,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/rfid", rfidRoutes);
 app.use("/api/keys", apiKeyRoutes);
 app.use("/api/devices", deviceRoutes);
+app.use("/api/users", userRoutes);
 
 // Database connection and table sync
 const connectAndSyncDB = async () => {
@@ -76,8 +78,14 @@ const connectAndSyncDB = async () => {
 const startServer = async () => {
   await connectAndSyncDB();
   const server = app.listen(PORT, () => {
-    const actualPort = server.address().port;
-    logger.info(`Server is running on port ${actualPort}`);
+    try {
+      const address = server.address();
+      const actualPort = address ? address.port : PORT;
+      logger.info(`Server is running on port ${actualPort}`);
+    } catch (error) {
+      logger.error(`Error getting server port: ${error.message}`);
+      logger.info(`Server is running on configured port ${PORT}`);
+    }
   });
   return server;
 };

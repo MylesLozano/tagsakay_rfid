@@ -499,6 +499,45 @@ export const getMonthlyStats = async (req, res) => {
 };
 
 /**
+ * Get recent RFID scans
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const getRecentScans = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Get recent RFID scans with user information
+    const recentScans = await RfidScan.findAll({
+      limit,
+      order: [["scanTime", "DESC"]],
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "name", "email", "role"],
+        },
+      ],
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: recentScans.length,
+      data: recentScans,
+    });
+  } catch (error) {
+    logger.error(`Error retrieving recent RFID scans: ${error.message}`, {
+      error,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Error retrieving recent RFID scans",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Helper function to determine if a scan is an entry or exit
  * @param {string} userId - User ID
  * @param {string} location - Location name

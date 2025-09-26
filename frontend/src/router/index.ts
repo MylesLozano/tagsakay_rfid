@@ -6,8 +6,11 @@ import authService from "../services/auth";
 const Login = () => import("../views/Login.vue");
 const Register = () => import("../views/Register.vue");
 const Dashboard = () => import("../views/Dashboard.vue");
+
 const RfidManagement = () => import("../views/RfidManagement.vue");
+const RfidCardManagement = () => import("../views/RfidCardManagement.vue");
 const ApiKeyManagement = () => import("../views/ApiKeyManagement.vue");
+const UserManagement = () => import("../views/UserManagement.vue");
 const NotFound = () => import("../views/NotFound.vue");
 
 const routes: RouteRecordRaw[] = [
@@ -37,6 +40,18 @@ const routes: RouteRecordRaw[] = [
     path: "/rfid",
     name: "RfidManagement",
     component: RfidManagement,
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: "/rfid-cards",
+    name: "RfidCardManagement",
+    component: RfidCardManagement,
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: "/users",
+    name: "UserManagement",
+    component: UserManagement,
     meta: { requiresAuth: true, requiresAdmin: true },
   },
   {

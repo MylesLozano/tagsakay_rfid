@@ -3,6 +3,7 @@ import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import rfidService from "../services/rfid";
 import type { Rfid, RegisterRfidData } from "../services/rfid";
+import RfidUnregisteredScans from "../components/RfidUnregisteredScans.vue";
 
 const router = useRouter();
 const rfids = ref<Rfid[]>([]);
@@ -18,6 +19,12 @@ const newRfid = ref<RegisterRfidData>({
 
 const isRegisterModalOpen = ref(false);
 
+// Handle tag selection from the RfidUnregisteredScans component
+const handleTagSelect = (tagId: string) => {
+  // Set the selected tag ID in the form
+  newRfid.value.tagId = tagId;
+};
+
 onMounted(async () => {
   await loadRfids();
 });
@@ -31,40 +38,46 @@ const loadRfids = async () => {
   error.value = "";
 
   try {
-    // Simulate getting RFID list since the backend doesn't seem to have this endpoint
-    // In a real app, you would call something like:
-    // const response = await apiClient.get('/rfid');
-    // rfids.value = response.data;
+    const response = await rfidService.getAllRfidCards();
 
-    // For demo purposes, using mock data
+    if (response && response.data) {
+      rfids.value = response.data;
+    } else {
+      // Fallback if the API doesn't return data in expected format
+      rfids.value = [];
+    }
+  } catch (err: any) {
+    error.value = err.response?.data?.message || "Failed to load RFID tags.";
+
+    // For development purposes, provide mock data when API fails
+    // In production, this should be removed
+    console.warn("Using mock RFID data due to API error:", err);
     rfids.value = [
       {
         id: "1",
         tagId: "RFID12345",
         userId: 1,
         isActive: true,
-        lastScanned: "2025-09-01T10:30:00Z",
+        lastScanned: "2023-09-01T10:30:00Z",
         deviceId: "ESP32-001",
         registeredBy: 1,
         metadata: { vehicleType: "Tricycle", plateNumber: "ABC123" },
-        createdAt: "2025-08-15T08:00:00Z",
-        updatedAt: "2025-09-01T10:30:00Z",
+        createdAt: "2023-08-15T08:00:00Z",
+        updatedAt: "2023-09-01T10:30:00Z",
       },
       {
         id: "2",
         tagId: "RFID67890",
         userId: 2,
         isActive: true,
-        lastScanned: "2025-09-03T14:45:00Z",
+        lastScanned: "2023-09-03T14:45:00Z",
         deviceId: "ESP32-002",
         registeredBy: 1,
         metadata: { vehicleType: "Tricycle", plateNumber: "XYZ789" },
-        createdAt: "2025-08-20T09:15:00Z",
-        updatedAt: "2025-09-03T14:45:00Z",
+        createdAt: "2023-08-20T09:15:00Z",
+        updatedAt: "2023-09-03T14:45:00Z",
       },
     ];
-  } catch (err: any) {
-    error.value = err.response?.data?.message || "Failed to load RFID tags.";
   } finally {
     loading.value = false;
   }
@@ -77,9 +90,15 @@ const registerRfid = async () => {
 
   try {
     const response = await rfidService.registerRfid(newRfid.value);
-    rfids.value.push(response);
+
+    // Add to the list and reload to get the latest data
+    rfids.value.unshift(response);
     success.value = "RFID tag registered successfully!";
-    isRegisterModalOpen.value = false;
+
+    // Close modal after a short delay to show the success message
+    setTimeout(() => {
+      isRegisterModalOpen.value = false;
+    }, 1000);
 
     // Reset form
     newRfid.value = {
@@ -142,7 +161,10 @@ const updateStatus = async (id: string, isActive: boolean) => {
     </div>
 
     <div class="flex justify-end mb-6">
-      <button class="btn btn-primary" @click="isRegisterModalOpen = true">
+      <button
+        class="btn btn-primary shadow-lg hover:shadow-xl transition-all duration-300"
+        @click="isRegisterModalOpen = true"
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           class="h-5 w-5 mr-2"
@@ -251,77 +273,91 @@ const updateStatus = async (id: string, isActive: boolean) => {
 
     <!-- Register RFID Modal -->
     <dialog :class="['modal', { 'modal-open': isRegisterModalOpen }]">
-      <div class="modal-box">
-        <h3 class="font-bold text-lg">Register New RFID Tag</h3>
+      <div class="modal-box max-w-3xl">
+        <h3 class="font-bold text-lg mb-4">Register New RFID Tag</h3>
 
-        <form @submit.prevent="registerRfid">
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">Tag ID</span>
-            </label>
-            <input
-              type="text"
-              v-model="newRfid.tagId"
-              placeholder="Enter RFID Tag ID"
-              class="input input-bordered"
-              required
-            />
-          </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Left side - Registration Form -->
+          <div class="space-y-4">
+            <form @submit.prevent="registerRfid">
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">Tag ID</span>
+                </label>
+                <input
+                  type="text"
+                  v-model="newRfid.tagId"
+                  placeholder="Enter RFID Tag ID or scan a card"
+                  class="input input-bordered"
+                  required
+                />
+              </div>
 
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">User ID (Optional)</span>
-            </label>
-            <input
-              type="number"
-              v-model="newRfid.userId"
-              placeholder="User ID to associate with this tag"
-              class="input input-bordered"
-            />
-          </div>
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">User ID (Optional)</span>
+                </label>
+                <input
+                  type="number"
+                  v-model="newRfid.userId"
+                  placeholder="User ID to associate with this tag"
+                  class="input input-bordered"
+                />
+              </div>
 
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text">Metadata (Optional)</span>
-            </label>
-            <textarea
-              :value="JSON.stringify(newRfid.metadata, null, 2)"
-              @input="
-                (e) => {
-                  try {
-                    if (e.target) {
-                      newRfid.metadata = JSON.parse((e.target as HTMLTextAreaElement).value);
+              <div class="form-control">
+                <label class="label">
+                  <span class="label-text">Metadata (Optional)</span>
+                </label>
+                <textarea
+                  :value="JSON.stringify(newRfid.metadata, null, 2)"
+                  @input="
+                    (e) => {
+                      try {
+                        if (e.target) {
+                          newRfid.metadata = JSON.parse((e.target as HTMLTextAreaElement).value);
+                        }
+                      } catch {}
                     }
-                  } catch {}
-                }
-              "
-              placeholder="JSON metadata"
-              class="textarea textarea-bordered h-24"
-            ></textarea>
-            <label class="label">
-              <span class="label-text-alt"
-                >Enter JSON data for additional information</span
-              >
-            </label>
+                  "
+                  placeholder="JSON metadata"
+                  class="textarea textarea-bordered h-24"
+                ></textarea>
+                <label class="label">
+                  <span class="label-text-alt"
+                    >Enter JSON data for additional information</span
+                  >
+                </label>
+              </div>
+
+              <div class="mt-4">
+                <button
+                  type="button"
+                  class="btn"
+                  @click="isRegisterModalOpen = false"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  class="btn btn-primary ml-2"
+                  :disabled="loading"
+                >
+                  <span
+                    class="loading loading-spinner loading-xs"
+                    v-if="loading"
+                  ></span>
+                  Register
+                </button>
+              </div>
+            </form>
           </div>
 
-          <div class="modal-action">
-            <button
-              type="button"
-              class="btn"
-              @click="isRegisterModalOpen = false"
-            >
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary" :disabled="loading">
-              <span
-                class="loading loading-spinner loading-xs"
-                v-if="loading"
-              ></span>
-              Register
-            </button>
+          <!-- Right side - Unregistered RFID scans -->
+          <div>
+            <RfidUnregisteredScans @selectTag="handleTagSelect" />
           </div>
-        </form>
+        </div>
       </div>
       <form method="dialog" class="modal-backdrop">
         <button @click="isRegisterModalOpen = false">close</button>

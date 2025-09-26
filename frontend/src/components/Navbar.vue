@@ -55,6 +55,12 @@ const logout = () => {
             <router-link to="/rfid">RFID Management</router-link>
           </li>
           <li v-if="isAdmin">
+            <router-link to="/rfid-cards">RFID Cards</router-link>
+          </li>
+          <li v-if="isAdmin">
+            <router-link to="/users">User Management</router-link>
+          </li>
+          <li v-if="isAdmin">
             <router-link to="/apikeys">API Keys</router-link>
           </li>
         </ul>
@@ -66,6 +72,12 @@ const logout = () => {
         <li><router-link to="/dashboard">Dashboard</router-link></li>
         <li v-if="isAdmin">
           <router-link to="/rfid">RFID Management</router-link>
+        </li>
+        <li v-if="isAdmin">
+          <router-link to="/rfid-cards">RFID Cards</router-link>
+        </li>
+        <li v-if="isAdmin">
+          <router-link to="/users">User Management</router-link>
         </li>
         <li v-if="isAdmin">
           <router-link to="/apikeys">API Keys</router-link>

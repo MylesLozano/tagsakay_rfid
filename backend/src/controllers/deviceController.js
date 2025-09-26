@@ -75,3 +75,154 @@ export const getActiveDevices = async (req, res) => {
     });
   }
 };
+
+// Global state to track registration mode for each device
+const deviceRegistrationMode = new Map();
+
+/**
+ * Set a device to registration mode
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const setRegistrationMode = async (req, res) => {
+  try {
+    const { deviceId, enabled, tagId } = req.body;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Device ID is required",
+      });
+    }
+
+    // Check if the device exists
+    const device = await ApiKey.findOne({
+      where: { id: deviceId },
+    });
+
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: "Device not found",
+      });
+    }
+
+    // Set the registration mode for the device
+    deviceRegistrationMode.set(deviceId, {
+      enabled: enabled === true,
+      tagId: tagId === "new" ? null : tagId || null, // "new" means any tag is accepted
+      scanMode: tagId === "new" ? true : false, // Special flag for scanning any new tag
+      timestamp: new Date(),
+    });
+
+    logger.info(
+      `Device ${deviceId} registration mode set to ${
+        enabled ? "enabled" : "disabled"
+      }${tagId === "new" ? " (scan mode)" : ""}`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Registration mode ${
+        enabled ? "enabled" : "disabled"
+      } for device ${deviceId}`,
+      data: {
+        deviceId,
+        registrationMode: enabled,
+        tagId,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error setting registration mode: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Check if a device is in registration mode
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const checkRegistrationMode = async (req, res) => {
+  try {
+    const deviceId = req.params.deviceId;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Device ID is required",
+      });
+    }
+
+    // Check if the device exists
+    // Instead of searching by ID, search by deviceId field or API key prefix
+    let device;
+
+    // Try to find by deviceId field
+    device = await ApiKey.findOne({
+      where: { deviceId: deviceId },
+    });
+
+    // If not found, check if deviceId parameter is the API key prefix
+    if (!device && deviceId.includes("_")) {
+      const prefix = deviceId.split("_")[0];
+      device = await ApiKey.findOne({
+        where: { prefix: prefix },
+      });
+    }
+
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: "Device not found",
+      });
+    }
+
+    // Use the actual device ID from the database for internal operations
+    const actualDeviceId = device.id;
+
+    // Check if the device is in registration mode
+    const registrationMode = deviceRegistrationMode.get(actualDeviceId);
+
+    // Auto-disable after 2 minutes of inactivity
+    if (registrationMode && registrationMode.enabled) {
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+      if (registrationMode.timestamp < twoMinutesAgo) {
+        deviceRegistrationMode.set(actualDeviceId, {
+          ...registrationMode,
+          enabled: false,
+        });
+        logger.info(
+          `Device ${device.deviceId} registration mode auto-disabled due to timeout`
+        );
+      }
+    }
+
+    // Get the updated registration mode
+    const updatedMode = deviceRegistrationMode.get(actualDeviceId) || {
+      enabled: false,
+      tagId: null,
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        deviceId: device.deviceId,
+        registrationMode: updatedMode.enabled,
+        tagId: updatedMode.tagId,
+        scanMode: updatedMode.scanMode || false,
+      },
+    });
+  } catch (error) {
+    logger.error(`Error checking registration mode: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};

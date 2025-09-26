@@ -33,14 +33,14 @@ interface UpdateApiKeyData {
 }
 
 const apiKeyService = {
-  async createApiKey(data: CreateApiKeyData): Promise<ApiKeyResponse> {
+  async createApiKey(data: CreateApiKeyData): Promise<any> {
     const response = await apiClient.post("/keys", data);
     return response.data;
   },
 
   async listApiKeys(): Promise<ApiKey[]> {
     const response = await apiClient.get("/keys");
-    return response.data;
+    return response.data.data;
   },
 
   async updateApiKey(id: string, data: UpdateApiKeyData): Promise<ApiKey> {

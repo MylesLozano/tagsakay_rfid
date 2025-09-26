@@ -2,17 +2,16 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import apiKeyService from "../services/apiKey";
-import type {
-  ApiKey,
-  CreateApiKeyData,
-  ApiKeyResponse,
-} from "../services/apiKey";
+import type { ApiKey, CreateApiKeyData } from "../services/apiKey";
 
 const router = useRouter();
 const apiKeys = ref<ApiKey[]>([]);
 const loading = ref(true);
 const error = ref("");
 const success = ref("");
+
+// For permission management
+const permissionsManage = ref(false);
 
 const newApiKey = ref<CreateApiKeyData>({
   name: "",
@@ -38,11 +37,20 @@ const loadApiKeys = async () => {
 
   try {
     const response = await apiKeyService.listApiKeys();
-    apiKeys.value = response;
+    apiKeys.value = response || [];
   } catch (err: any) {
     error.value = err.response?.data?.message || "Failed to load API keys.";
   } finally {
     loading.value = false;
+  }
+};
+
+// Ensure scan permission is always included
+const ensureScanPermission = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  if (!target.checked) {
+    // Force it back to checked if unchecked
+    target.checked = true;
   }
 };
 
@@ -51,13 +59,41 @@ const createApiKey = async () => {
   error.value = "";
   success.value = "";
 
+  // Prepare permissions array
+  const permissions = ["scan"];
+  if (permissionsManage.value) {
+    permissions.push("manage");
+  }
+
+  // Update permissions in the API key data
+  newApiKey.value.permissions = permissions;
+
   try {
-    const response: ApiKeyResponse = await apiKeyService.createApiKey(
-      newApiKey.value
-    );
-    apiKeys.value.push(response);
-    createdKey.value = response.key;
+    const response = await apiKeyService.createApiKey(newApiKey.value);
+
+    // Extract the API key and push to list
+    if (response.success && response.data) {
+      const newKey = response.data;
+      createdKey.value = newKey.apiKey; // Backend returns apiKey, not key
+
+      // Add to list without the full API key
+      apiKeys.value.push({
+        id: newKey.id,
+        name: newKey.name,
+        deviceId: newKey.deviceId,
+        prefix: newKey.prefix,
+        permissions: newKey.permissions,
+        lastUsed: null,
+        isActive: true,
+        createdBy: newKey.createdBy || 0,
+        createdAt: newKey.createdAt,
+        updatedAt: newKey.createdAt,
+        description: newKey.description || null,
+      });
+    }
+
     success.value = "API key created successfully!";
+    isCreateModalOpen.value = false;
 
     // Reset form
     newApiKey.value = {
@@ -66,6 +102,9 @@ const createApiKey = async () => {
       description: "",
       permissions: ["scan"],
     };
+
+    // Reset permission toggles
+    permissionsManage.value = false;
   } catch (err: any) {
     error.value = err.response?.data?.message || "Failed to create API key.";
   } finally {
@@ -361,10 +400,18 @@ const copyToClipboard = (text: string) => {
                 <input
                   type="checkbox"
                   checked
-                  disabled
+                  @change="ensureScanPermission"
                   class="checkbox checkbox-primary"
                 />
-                <span class="label-text">scan (required)</span>
+                <span class="label-text">scan (always required)</span>
+              </label>
+              <label class="label cursor-pointer justify-start gap-2">
+                <input
+                  type="checkbox"
+                  v-model="permissionsManage"
+                  class="checkbox checkbox-primary"
+                />
+                <span class="label-text">manage</span>
               </label>
             </div>
           </div>
