@@ -1,39 +1,25 @@
 import express from "express";
-import {
-  getActiveDevices,
-  setRegistrationMode,
-  checkRegistrationMode,
-} from "../controllers/deviceController.js";
-import { updateDeviceStatus } from "../controllers/deviceStatusUpdate.js";
-import { authenticateToken, authorizeRole } from "../middleware/auth.js";
-import { authenticateApiKey } from "../middleware/deviceAuth.js";
-
 const router = express.Router();
+import * as deviceController from "../controllers/deviceController.js";
+import { authenticateJWT } from "../middleware/auth.js";
+import { authenticateDevice } from "../middleware/deviceAuth.js";
 
-// Get active RFID devices
-router.get(
-  "/active",
-  authenticateToken,
-  authorizeRole(["admin", "staff"]),
-  getActiveDevices
-);
+// Admin routes (require JWT authentication)
+router.post("/register", authenticateJWT, deviceController.registerDevice);
+router.get("/", authenticateJWT, deviceController.getAllDevices);
 
-// Set registration mode for a device (requires admin authentication)
+// Device routes (require API key authentication)
 router.post(
-  "/registration-mode",
-  authenticateToken,
-  authorizeRole(["admin"]),
-  setRegistrationMode
+  "/status/:deviceId",
+  authenticateDevice,
+  deviceController.updateDeviceStatus
 );
 
-// Check registration mode for a device (requires device API key authentication)
+// Public routes for devices to check their status
 router.get(
   "/registration-mode/:deviceId",
-  authenticateApiKey,
-  checkRegistrationMode
+  authenticateDevice,
+  deviceController.getRegistrationMode
 );
-
-// Update device status (requires device API key authentication)
-router.post("/status/:deviceId", authenticateApiKey, updateDeviceStatus);
 
 export default router;

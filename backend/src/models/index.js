@@ -3,6 +3,10 @@ import User from "./User.js";
 import ApiKey from "./ApiKey.js";
 import Rfid from "./Rfid.js";
 import RfidScan from "./RfidScan.js";
+import DeviceModel from "./Device.js";
+
+// Initialize the Device model with the sequelize instance
+const Device = DeviceModel(sequelize);
 
 const db = {};
 
@@ -14,6 +18,7 @@ db.User = User;
 db.ApiKey = ApiKey;
 db.Rfid = Rfid;
 db.RfidScan = RfidScan;
+db.Device = Device;
 
 // Add associations here
 db.User.hasMany(ApiKey, { foreignKey: "createdBy", as: "apiKeys" });
@@ -44,5 +49,11 @@ RfidScan.belongsTo(Rfid, {
   constraints: false,
 });
 
+Object.keys(db).forEach((modelName) => {
+  if (db[modelName].associate) {
+    db[modelName].associate(db);
+  }
+});
+
 export default db;
-export { User, ApiKey, Rfid, RfidScan };
+export { User, ApiKey, Rfid, RfidScan, Device };

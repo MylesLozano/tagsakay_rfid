@@ -55,10 +55,10 @@ app.get("/", (req, res) => {
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/rfid", rfidRoutes);
-app.use("/api/keys", apiKeyRoutes);
-app.use("/api/devices", deviceRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/rfid", rfidRoutes);
+app.use("/api/apiKeys", apiKeyRoutes);
+app.use("/api/devices", deviceRoutes);
 
 // Database connection and table sync
 const connectAndSyncDB = async () => {

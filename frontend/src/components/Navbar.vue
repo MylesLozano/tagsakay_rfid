@@ -63,6 +63,14 @@ const logout = () => {
           <li v-if="isAdmin">
             <router-link to="/apikeys">API Keys</router-link>
           </li>
+          <li>
+            <router-link
+              to="/devices"
+              class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Devices
+            </router-link>
+          </li>
         </ul>
       </div>
       <router-link to="/" class="btn btn-ghost text-xl">TagSakay</router-link>
@@ -81,6 +89,14 @@ const logout = () => {
         </li>
         <li v-if="isAdmin">
           <router-link to="/apikeys">API Keys</router-link>
+        </li>
+        <li>
+          <router-link
+            to="/devices"
+            class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
+          >
+            Devices
+          </router-link>
         </li>
       </ul>
     </div>

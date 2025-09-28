@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { ApiKey } from "../models/index.js";
+import { ApiKey, Device } from "../models/index.js";
 import logger from "../config/logger.js";
 
 /**
@@ -151,4 +151,43 @@ export const rfidRateLimit = (req, res, next) => {
   );
 
   next();
+};
+
+/**
+ * Middleware to authenticate device using API key
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware function
+ */
+export const authenticateDevice = async (req, res, next) => {
+  try {
+    const apiKey = req.header("X-API-Key");
+
+    if (!apiKey) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication failed: No API key provided",
+      });
+    }
+
+    // Find device by API key
+    const device = await Device.findOne({ where: { apiKey } });
+
+    if (!device) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication failed: Invalid API key",
+      });
+    }
+
+    // Attach device to request for use in route handlers
+    req.device = device;
+    next();
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Authentication error",
+      error: error.message,
+    });
+  }
 };

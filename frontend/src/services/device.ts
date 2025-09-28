@@ -1,37 +1,68 @@
-import apiClient from "./api";
+import api from "./api";
 
-interface DeviceRegistrationModeData {
+export interface Device {
+  id: number;
   deviceId: string;
-  enabled: boolean;
-  tagId?: string;
+  macAddress: string;
+  name: string;
+  location: string;
+  isActive: boolean;
+  registrationMode: boolean;
+  lastSeen?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface DeviceInfo {
-  id: string;
+export interface RegisterDeviceRequest {
+  macAddress: string;
   name: string;
-  lastActive: string;
-  status: "online" | "offline";
-  location?: string;
+  location: string;
 }
 
 const deviceService = {
   /**
-   * Get all active devices
+   * Register a new device with its MAC address
    */
-  async getActiveDevices(): Promise<DeviceInfo[]> {
-    const response = await apiClient.get("/devices/active");
-    return response.data;
+  registerDevice: async (
+    deviceData: RegisterDeviceRequest
+  ): Promise<Device> => {
+    const response = await api.post("/devices/register", deviceData);
+    return response.data.data.device;
   },
 
   /**
-   * Set registration mode for a device
-   * @param data DeviceRegistrationModeData
+   * Get all registered devices
    */
-  async setRegistrationMode(data: DeviceRegistrationModeData) {
-    const response = await apiClient.post("/devices/registration-mode", data);
-    return response.data;
+  getAllDevices: async (): Promise<Device[]> => {
+    const response = await api.get("/devices");
+    return response.data.data.devices;
+  },
+
+  /**
+   * Enable registration mode for a device
+   */
+  enableRegistrationMode: async (
+    deviceId: string,
+    tagId?: string
+  ): Promise<Device> => {
+    const response = await api.post(`/devices/status/${deviceId}`, {
+      registrationMode: true,
+      pendingRegistrationTagId: tagId || "",
+      scanMode: !tagId,
+    });
+    return response.data.data.device;
+  },
+
+  /**
+   * Disable registration mode for a device
+   */
+  disableRegistrationMode: async (deviceId: string): Promise<Device> => {
+    const response = await api.post(`/devices/status/${deviceId}`, {
+      registrationMode: false,
+      pendingRegistrationTagId: "",
+    });
+    return response.data.data.device;
   },
 };
 
 export default deviceService;
-export type { DeviceRegistrationModeData, DeviceInfo };

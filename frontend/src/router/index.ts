@@ -12,6 +12,7 @@ const RfidCardManagement = () => import("../views/RfidCardManagement.vue");
 const ApiKeyManagement = () => import("../views/ApiKeyManagement.vue");
 const UserManagement = () => import("../views/UserManagement.vue");
 const NotFound = () => import("../views/NotFound.vue");
+const DeviceManagement = () => import("../views/DeviceManagement.vue");
 
 const routes: RouteRecordRaw[] = [
   {
@@ -59,6 +60,12 @@ const routes: RouteRecordRaw[] = [
     name: "ApiKeyManagement",
     component: ApiKeyManagement,
     meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: "/devices",
+    name: "DeviceManagement",
+    component: DeviceManagement,
+    meta: { requiresAuth: true },
   },
   {
     path: "/:pathMatch(.*)*",

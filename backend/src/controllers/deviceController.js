@@ -1,6 +1,7 @@
-import { ApiKey } from "../models/index.js";
+import { ApiKey, Device } from "../models/index.js";
 import logger from "../config/logger.js";
 import { Op } from "sequelize";
+import crypto from "crypto";
 
 /**
  * Get a list of active RFID devices
@@ -222,6 +223,156 @@ export const checkRegistrationMode = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Helper function to generate API key
+ */
+const generateApiKey = () => {
+  return crypto.randomBytes(32).toString("hex");
+};
+
+/**
+ * Create new device
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const registerDevice = async (req, res) => {
+  try {
+    const { macAddress, location, name } = req.body;
+
+    // Sanitize MAC address (remove colons if present)
+    const deviceId = macAddress.replace(/:/g, "");
+
+    // Check if device already exists
+    const existingDevice = await Device.findOne({ where: { deviceId } });
+    if (existingDevice) {
+      return res.status(400).json({
+        success: false,
+        message: "Device already registered",
+      });
+    }
+
+    // Create new device
+    const device = await Device.create({
+      deviceId,
+      macAddress, // Store original MAC with colons for display
+      location,
+      name,
+      apiKey: generateApiKey(),
+      isActive: true,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Device registered successfully",
+      data: { device },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error registering device",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get all devices
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const getAllDevices = async (req, res) => {
+  try {
+    const devices = await Device.findAll();
+
+    res.json({
+      success: true,
+      data: { devices },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error retrieving devices",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get registration mode status
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const getRegistrationMode = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+
+    const device = await Device.findOne({ where: { deviceId } });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: "Device not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        registrationMode: device.registrationMode,
+        tagId: device.pendingRegistrationTagId || "",
+        scanMode: device.scanMode || false,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error checking registration mode",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update device status (including registration mode)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+export const updateDeviceStatus = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const { registrationMode, pendingRegistrationTagId, scanMode } = req.body;
+
+    const device = await Device.findOne({ where: { deviceId } });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: "Device not found",
+      });
+    }
+
+    // Update device fields
+    if (registrationMode !== undefined)
+      device.registrationMode = registrationMode;
+    if (pendingRegistrationTagId !== undefined)
+      device.pendingRegistrationTagId = pendingRegistrationTagId;
+    if (scanMode !== undefined) device.scanMode = scanMode;
+
+    device.lastSeen = new Date();
+    await device.save();
+
+    res.json({
+      success: true,
+      message: "Device status updated",
+      data: { device },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error updating device status",
       error: error.message,
     });
   }

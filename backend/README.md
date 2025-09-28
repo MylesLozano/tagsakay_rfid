@@ -6,18 +6,21 @@ This is the backend server for the TagSakay RFID Tricycle Queue Management Syste
 
 ```
 backend/
+├── scripts/          # Utility scripts for database and device management
+├── migrations/       # Database migration scripts
+├── seeders/          # Database seed data
 ├── src/
-│   ├── config/         # Configuration files
-│   ├── controllers/    # Request handlers
-│   ├── middleware/     # Express middleware
-│   ├── models/         # Sequelize models
-│   ├── routes/         # API routes
-│   ├── seeders/        # Database seeders
-│   ├── utils/          # Utility functions
-│   └── app.js          # Application entry point
-├── .env                # Environment variables
-├── package.json        # Project dependencies
-└── README.md           # This file
+│   ├── config/       # Configuration files
+│   ├── controllers/  # Request handlers
+│   ├── middleware/   # Express middleware
+│   ├── models/       # Sequelize models
+│   ├── routes/       # API routes
+│   └── app.js        # Application entry point
+├── docs/             # API documentation
+├── logs/             # Application logs
+├── .env              # Environment variables
+├── package.json      # Project dependencies
+└── README.md         # This file
 ```
 
 ## Getting Started
@@ -46,39 +49,51 @@ backend/
 
 ## Database Management
 
-The project includes a comprehensive database CLI tool (`dbcli.js`) for managing your TagSakay database:
+The project includes comprehensive database management scripts:
 
 ```bash
 # Show all available commands
 npm run db
 
-# Seed the database with sample data
+# Reset database (drop and create)
+npm run db:reset
+
+# Initialize database schema
+npm run db:init
+
+# Seed database with test data
 npm run db:seed
 
-# Reset and seed the database (delete existing data first)
-npm run db:seed:reset
-
-# Check database connection and content
-npm run db:check
-
-# Sync database schema (create tables if they don't exist)
-npm run db:sync
-
-# Modify existing tables to match models
-npm run db:sync:alter
-
-# Drop all tables and recreate them
-npm run db:sync:force
+# Full reset, init, and seed in one command
+npm run db:full
 ```
 
-You can also run the CLI directly with additional options:
+## Device Management
+
+Scripts for managing RFID devices in the system:
 
 ```bash
-# Seed with 10 scan records per RFID tag
-node dbcli.js seed --scan-count=10
+# Show help
+npm run device
 
-# Get verbose output
-node dbcli.js check --verbose
+# Register a new device
+npm run device:register 00:11:22:33:44:55 "Entrance Gate" "Main Building"
+
+# List all registered devices
+npm run device:list
+```
+
+## API Testing
+
+Test API endpoints from the command line:
+
+```bash
+# Show available endpoints
+npm run test:api
+
+# Test a specific endpoint
+npm run test:api login
+npm run test:api scanRfid '{"tagId":"ABCDEF12","deviceId":"001122334455"}'
 ```
 
 ### Running the Server
@@ -93,6 +108,14 @@ Production mode:
 
 ```
 npm start
+```
+
+## Database Migrations
+
+Run database migrations to update your schema:
+
+```
+npm run migrate
 ```
 
 ## API Endpoints
@@ -121,11 +144,28 @@ npm start
 - `POST /api/keys` - Create a new API key
 - `DELETE /api/keys/:id` - Revoke an API key
 
+### Device Management
+
+- `GET /api/devices` - Get all devices
+- `POST /api/devices/register` - Register a new device
+- `GET /api/devices/active` - Get active devices
+- `POST /api/devices/:deviceId/heartbeat` - Device heartbeat
+- `GET /api/devices/:deviceId/registration-mode` - Check registration mode
+- `POST /api/devices/:deviceId/registration-mode` - Set registration mode
+
 ## Development
 
-### Seeding Data
+### Script Organization
 
-The seeding system allows you to populate your database with sample data for development purposes. See the [Seeders README](./src/seeders/README.md) for more details.
+All utility scripts are now organized in the `scripts/` directory:
+
+- `db-manager.js` - Database management operations
+- `device-manager.js` - Device management operations
+- `migrate-manager.js` - Database migration runner
+- `test-endpoint.js` - API endpoint testing tool
+- `cleanup.js` - Legacy script cleanup tool
+
+For details about available scripts, see [Scripts README](./scripts/README.md).
 
 ### Adding New Features
 

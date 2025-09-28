@@ -6,13 +6,19 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
-    "db": "node dbcli.js",
-    "db:seed": "node dbcli.js seed",
-    "db:seed:reset": "node dbcli.js seed:reset",
-    "db:sync": "node dbcli.js sync",
-    "db:sync:force": "node dbcli.js sync:force",
-    "db:sync:alter": "node dbcli.js sync:alter",
-    "db:check": "node dbcli.js check"
+    "db:reset": "node scripts/db-manager.js reset",
+    "db:init": "node scripts/db-manager.js init",
+    "db:seed": "node scripts/db-manager.js seed",
+    "db:full": "node scripts/db-manager.js full",
+    "db": "node scripts/db-manager.js help",
+    "device": "node scripts/device-manager.js",
+    "device:register": "node scripts/device-manager.js register",
+    "device:list": "node scripts/device-manager.js list",
+    "migrate": "node scripts/migrate-manager.js",
+    "test:api": "node scripts/test-endpoint.js",
+    "cleanup:list": "node scripts/cleanup.js list",
+    "cleanup:backup": "node scripts/cleanup.js backup",
+    "cleanup:remove": "node scripts/cleanup.js remove"
   },
   "keywords": [
     "rfid",
