@@ -1,7 +1,7 @@
 import express from "express";
 const router = express.Router();
 import * as deviceController from "../controllers/deviceController.js";
-import { authenticateJWT } from "../middleware/auth.js";
+import { authenticateToken as authenticateJWT } from "../middleware/auth.js";
 import { authenticateDevice } from "../middleware/deviceAuth.js";
 
 // Admin routes (require JWT authentication)

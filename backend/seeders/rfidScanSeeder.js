@@ -4,6 +4,7 @@ import logger from "../src/config/logger.js";
 /**
  * Seeds RFID scan events into the database
  * @param {Array} rfidTags Array of RFID tag objects
+ * @param {Array} devices Array of device objects to use for scanning
  * @param {Object} options Configuration options
  * @param {boolean} options.resetData Whether to delete existing scan records before seeding
  * @param {number} options.scanCount Number of scans to generate per tag
@@ -11,6 +12,7 @@ import logger from "../src/config/logger.js";
  */
 export const seedRfidScans = async (
   rfidTags,
+  devices = [],
   options = { resetData: false, scanCount: 5 }
 ) => {
   try {
@@ -30,7 +32,12 @@ export const seedRfidScans = async (
     }
 
     const createdScans = [];
-    const deviceIds = ["TERMINAL-01", "TERMINAL-02", "MOBILE-APP"];
+    // Use actual device IDs if available, otherwise use defaults
+    const deviceIds =
+      devices.length > 0
+        ? devices.map((device) => device.deviceId)
+        : ["TERMINAL-01", "TERMINAL-02", "MOBILE-APP"];
+
     const eventTypes = ["entry", "exit", "unknown"];
     const statuses = ["success", "failed", "unauthorized"];
     const locations = [

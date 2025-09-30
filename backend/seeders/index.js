@@ -2,6 +2,7 @@ import { seedUsers } from "./userSeeder.js";
 import { seedRfidTags } from "./rfidSeeder.js";
 import { seedApiKeys } from "./apiKeySeeder.js";
 import { seedRfidScans } from "./rfidScanSeeder.js";
+import { seedDevices } from "./deviceSeeder.js";
 import logger from "../src/config/logger.js";
 import sequelize from "../src/config/database.js";
 
@@ -24,17 +25,24 @@ export const seedDatabase = async (options = { resetData: false }) => {
     const apiKeys = await seedApiKeys(users, options);
     logger.info(`Seeded ${apiKeys.length} API keys`);
 
-    // 3. Seed RFID tags (depends on users)
-    const rfidTags = await seedRfidTags(users, options);
+    // 3. Seed Devices
+    const devices = await seedDevices(options);
+    logger.info(`Seeded ${devices.length} devices`);
+
+    // 4. Seed RFID tags (depends on users)
+    const rfidTags = await seedRfidTags(users, devices, options);
     logger.info(`Seeded ${rfidTags.length} RFID tags`);
 
-    // 4. Seed RFID scan events (depends on RFID tags and users)
+    // 5. Seed RFID scan events (depends on RFID tags and users)
     const scanCount = options.scanCount || 3;
-    const rfidScans = await seedRfidScans(rfidTags, { ...options, scanCount });
+    const rfidScans = await seedRfidScans(rfidTags, devices, {
+      ...options,
+      scanCount,
+    });
     logger.info(`Seeded ${rfidScans.length} RFID scan records`);
 
     logger.info("Database seeding completed successfully");
-    return { users, apiKeys, rfidTags, rfidScans };
+    return { users, apiKeys, devices, rfidTags, rfidScans };
   } catch (error) {
     logger.error("Error seeding database:", error);
     throw error;

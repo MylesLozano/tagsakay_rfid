@@ -201,13 +201,73 @@ async function initializeSchema() {
 
 /**
  * Seeds the database with test data
+ * @param {string} component - Optional component to seed (users, devices, etc.)
  */
-async function seedDatabase() {
+async function seedDatabase(component = null) {
   try {
-    logger.info("🌱 Seeding database with initial data...");
-    const { seedDatabase } = await import("../seeders/index.js");
-    await seedDatabase({ resetData: true });
-    logger.info("Database seeding completed successfully!");
+    if (!component) {
+      // Seed everything
+      logger.info("🌱 Seeding database with all initial data...");
+      const { seedDatabase } = await import("../seeders/index.js");
+      await seedDatabase({ resetData: true });
+      logger.info("Database seeding completed successfully!");
+      return;
+    }
+
+    // Seed specific component
+    logger.info(`🌱 Seeding only ${component}...`);
+
+    // Import all seeders
+    const { seedUsers } = await import("../seeders/userSeeder.js");
+    const { seedApiKeys } = await import("../seeders/apiKeySeeder.js");
+    const { seedDevices } = await import("../seeders/deviceSeeder.js");
+    const { seedRfidTags } = await import("../seeders/rfidSeeder.js");
+    const { seedRfidScans } = await import("../seeders/rfidScanSeeder.js");
+
+    const options = { resetData: true };
+
+    // Handle specific component seeding
+    switch (component) {
+      case "users":
+        await seedUsers(options);
+        logger.info("Users seeded successfully!");
+        break;
+
+      case "apikeys":
+        const users = await seedUsers({ resetData: false });
+        await seedApiKeys(users, options);
+        logger.info("API keys seeded successfully!");
+        break;
+
+      case "devices":
+        await seedDevices(options);
+        logger.info("Devices seeded successfully!");
+        break;
+
+      case "rfids":
+        const usersForRfids = await seedUsers({ resetData: false });
+        const devicesForRfids = await seedDevices({ resetData: false });
+        await seedRfidTags(usersForRfids, devicesForRfids, options);
+        logger.info("RFID tags seeded successfully!");
+        break;
+
+      case "scans":
+        const usersForScans = await seedUsers({ resetData: false });
+        const devicesForScans = await seedDevices({ resetData: false });
+        const rfidTags = await seedRfidTags(usersForScans, devicesForScans, {
+          resetData: false,
+        });
+        await seedRfidScans(rfidTags, devicesForScans, {
+          ...options,
+          scanCount: 3,
+        });
+        logger.info("RFID scans seeded successfully!");
+        break;
+
+      default:
+        logger.error(`Unknown component: ${component}`);
+        throw new Error(`Unknown component: ${component}`);
+    }
   } catch (error) {
     logger.error(`Database seeding failed: ${error.message}`);
     throw error;
@@ -239,9 +299,17 @@ async function main() {
         break;
 
       case "seed":
-        logger.info("Seeding database with test data...");
-        await seedDatabase();
-        logger.info("✅ Database seeding complete!");
+        // Check if a specific component is specified
+        const component = args[1]?.toLowerCase();
+        if (component) {
+          logger.info(`Seeding specific component: ${component}...`);
+          await seedDatabase(component);
+          logger.info(`✅ ${component} seeding complete!`);
+        } else {
+          logger.info("Seeding all database components with test data...");
+          await seedDatabase();
+          logger.info("✅ Database seeding complete!");
+        }
         break;
 
       case "full":
@@ -260,17 +328,24 @@ async function main() {
         console.log(`
 TagSakay Database Management Tool
 
-Usage: node scripts/db-manager.js [command]
+Usage: node scripts/db-manager.js [command] [component]
 
 Commands:
-  reset   - Drop and recreate the database
-  init    - Initialize database schema (create tables)
-  seed    - Populate database with test data
-  full    - Perform all operations: reset, init, and seed
-  help    - Show this help message
+  reset         - Drop and recreate the database
+  init          - Initialize database schema (create tables)
+  seed          - Populate database with test data (all components)
+  seed users    - Seed only users
+  seed apikeys  - Seed only API keys
+  seed devices  - Seed only devices
+  seed rfids    - Seed only RFID tags
+  seed scans    - Seed only RFID scans
+  full          - Perform all operations: reset, init, and seed
+  help          - Show this help message
 
-Example:
+Examples:
   node scripts/db-manager.js full
+  node scripts/db-manager.js seed devices
+  npm run db:seed devices
         `);
         break;
     }

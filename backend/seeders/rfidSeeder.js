@@ -4,11 +4,16 @@ import logger from "../src/config/logger.js";
 /**
  * Seeds RFID tags into the database
  * @param {Array} users Array of user objects to associate with RFID tags
+ * @param {Array} devices Array of device objects to associate with RFID tags
  * @param {Object} options Configuration options
  * @param {boolean} options.resetData Whether to delete existing RFID tags before seeding
  * @returns {Promise<Array>} Array of created RFID tags
  */
-export const seedRfidTags = async (users, options = { resetData: false }) => {
+export const seedRfidTags = async (
+  users,
+  devices = [],
+  options = { resetData: false }
+) => {
   try {
     // Clear existing RFID tags if resetData is true
     if (options.resetData) {
@@ -35,6 +40,14 @@ export const seedRfidTags = async (users, options = { resetData: false }) => {
 
     const createdTags = [];
 
+    // Get a registration device (or default to first one)
+    const registrationDevice =
+      devices.find((d) => d.name.includes("Registration")) ||
+      (devices.length > 0 ? devices[0] : null);
+    const registrationDeviceId = registrationDevice
+      ? registrationDevice.deviceId
+      : "SEED-TERMINAL-01";
+
     // Create RFID tags for drivers (Use the tag IDs that are already set in their user records)
     for (const driver of drivers) {
       // Skip if the driver doesn't have an rfidTag
@@ -44,7 +57,7 @@ export const seedRfidTags = async (users, options = { resetData: false }) => {
         tagId: driver.rfidTag,
         userId: driver.id,
         isActive: true,
-        deviceId: "SEED-TERMINAL-01",
+        deviceId: registrationDeviceId,
         registeredBy: adminUser.id,
         metadata: {
           vehicleType: "tricycle",
@@ -64,7 +77,7 @@ export const seedRfidTags = async (users, options = { resetData: false }) => {
         tagId: tagId,
         userId: null, // Unassigned
         isActive: true,
-        deviceId: "SEED-TERMINAL-01",
+        deviceId: registrationDeviceId,
         registeredBy: adminUser.id,
         metadata: { status: "inventory", location: "Terminal Office" },
       });
