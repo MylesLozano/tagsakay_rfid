@@ -1,7 +1,7 @@
 import { RfidScan, Rfid } from "../models/index.js";
 import logger from "../config/logger.js";
 import { Op } from "sequelize";
-import sequelize from "../config/database.js";
+import { sequelize } from "../config/database.js";
 
 /**
  * Get recent unregistered RFID scans

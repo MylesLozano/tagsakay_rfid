@@ -44,21 +44,31 @@ const displayedCards = computed(() => {
   return rfidCards.value;
 });
 
+// Variable to store the scan check interval
+let scanCheckInterval: number | null = null;
+
 // Load initial data
 onMounted(async () => {
   await Promise.all([loadRfidCards(), loadUsers(), loadActiveDevices()]);
 
   // Set up polling for new scans every 3 seconds
-  setInterval(async () => {
+  scanCheckInterval = window.setInterval(async () => {
     await checkForNewScans();
   }, 3000);
 });
 
 // Clean up when the component is unmounted
 onUnmounted(() => {
+  // Clean up polling interval
   if (pollingInterval) {
     clearInterval(pollingInterval);
     pollingInterval = null;
+  }
+
+  // Clean up scan check interval
+  if (scanCheckInterval) {
+    clearInterval(scanCheckInterval);
+    scanCheckInterval = null;
   }
 });
 
@@ -79,10 +89,7 @@ const handleModalClose = async () => {
 
     if (onlineDevices.length > 0) {
       try {
-        await deviceService.setRegistrationMode({
-          deviceId: onlineDevices[0].id,
-          enabled: false,
-        });
+        await deviceService.disableRegistrationMode(onlineDevices[0].id);
 
         console.log("Registration mode disabled on device");
       } catch (err) {
@@ -164,11 +171,7 @@ const openRegisterModal = async (card: any = null) => {
       if (onlineDevices.length > 0) {
         try {
           const deviceId = onlineDevices[0].id;
-          await deviceService.setRegistrationMode({
-            deviceId,
-            enabled: true,
-            tagId: "new", // Special value indicating we're waiting for any card
-          });
+          await deviceService.enableRegistrationMode(deviceId, "new"); // "new" is a special value indicating we're waiting for any card
 
           success.value = "Waiting for new RFID tag scan...";
           console.log(
@@ -243,10 +246,7 @@ const startPollingForNewTag = () => {
             try {
               // Disable registration mode on the first online device
               const deviceId = onlineDevices[0].id;
-              await deviceService.setRegistrationMode({
-                deviceId,
-                enabled: false,
-              });
+              await deviceService.disableRegistrationMode(deviceId);
             } catch (err) {
               console.error("Error disabling registration mode:", err);
             }
@@ -332,11 +332,7 @@ const startRegistration = async (card: any) => {
         // In a more complex system, you might want to select a specific device or notify multiple devices
         const deviceId = onlineDevices[0].id;
 
-        await deviceService.setRegistrationMode({
-          deviceId,
-          enabled: true,
-          tagId: card.tagId,
-        });
+        await deviceService.enableRegistrationMode(deviceId, card.tagId);
 
         console.log(
           `Notified device ${deviceId} to enter registration mode for tag ${card.tagId}`

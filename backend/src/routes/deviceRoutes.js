@@ -7,6 +7,9 @@ import { authenticateDevice } from "../middleware/deviceAuth.js";
 // Admin routes (require JWT authentication)
 router.post("/register", authenticateJWT, deviceController.registerDevice);
 router.get("/", authenticateJWT, deviceController.getAllDevices);
+router.get("/active", authenticateJWT, deviceController.getActiveDevices);
+router.delete("/:id", authenticateJWT, deviceController.deleteDevice);
+router.put("/:id/status", authenticateJWT, deviceController.updateDeviceStatus);
 
 // Device routes (require API key authentication)
 router.post(
@@ -15,11 +18,24 @@ router.post(
   deviceController.updateDeviceStatus
 );
 
-// Public routes for devices to check their status
+// Routes for device registration mode
+router.post(
+  "/:deviceId/registration-mode",
+  authenticateJWT,
+  deviceController.enableRegistrationMode
+);
 router.get(
   "/registration-mode/:deviceId",
   authenticateDevice,
   deviceController.getRegistrationMode
 );
+router.post(
+  "/:deviceId/enable-registration",
+  authenticateJWT,
+  deviceController.enableRegistrationMode
+);
+
+// Device heartbeat endpoint (no authentication required for easier integration with ESP32)
+router.post("/:deviceId/heartbeat", deviceController.updateDeviceHeartbeat);
 
 export default router;

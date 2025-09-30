@@ -10,9 +10,9 @@ const Dashboard = () => import("../views/Dashboard.vue");
 const RfidManagement = () => import("../views/RfidManagement.vue");
 const RfidCardManagement = () => import("../views/RfidCardManagement.vue");
 const ApiKeyManagement = () => import("../views/ApiKeyManagement.vue");
+const DeviceManagement = () => import("../views/DeviceManagement.vue");
 const UserManagement = () => import("../views/UserManagement.vue");
 const NotFound = () => import("../views/NotFound.vue");
-const DeviceManagement = () => import("../views/DeviceManagement.vue");
 
 const routes: RouteRecordRaw[] = [
   {
@@ -65,7 +65,7 @@ const routes: RouteRecordRaw[] = [
     path: "/devices",
     name: "DeviceManagement",
     component: DeviceManagement,
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresAdmin: true },
   },
   {
     path: "/:pathMatch(.*)*",

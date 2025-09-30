@@ -56,11 +56,33 @@ export const authenticateApiKey = async (req, res, next) => {
     const requiredPermission = req.originalUrl.includes("/scan")
       ? "scan"
       : "manage";
-    const perms = Array.isArray(apiKey.permissions)
-      ? apiKey.permissions
-      : typeof apiKey.permissions === "string"
-      ? [apiKey.permissions]
-      : [];
+
+    // Fix potentially corrupted permissions
+    let perms = [];
+
+    if (typeof apiKey.permissions === "string") {
+      // If it's a string, use it directly
+      perms = [apiKey.permissions];
+    } else if (Array.isArray(apiKey.permissions)) {
+      // If it's an array but with individual characters, reconstruct the permission strings
+      // Check if it looks like individual characters (common issue)
+      if (
+        (apiKey.permissions.length > 2 &&
+          apiKey.permissions.every((p) => p.length === 1) &&
+          apiKey.permissions.join("") === "scan") ||
+        apiKey.permissions.join("") === "manage"
+      ) {
+        perms = [apiKey.permissions.join("")];
+
+        // Save the fixed permission back to the database
+        apiKey.permissions = perms;
+        await apiKey.save();
+        logger.info(`Fixed corrupted permissions for API key ${apiKey.id}`);
+      } else {
+        perms = apiKey.permissions;
+      }
+    }
+
     if (!perms.includes(requiredPermission)) {
       logger.warn(
         `API key authentication failed: Insufficient permissions for ${requiredPermission}`
@@ -170,19 +192,63 @@ export const authenticateDevice = async (req, res, next) => {
       });
     }
 
-    // Find device by API key
+    // Try to find by API key first
     const device = await Device.findOne({ where: { apiKey } });
 
-    if (!device) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication failed: Invalid API key",
-      });
+    if (device) {
+      // Found device by API key
+      req.device = device;
+      next();
+      return;
     }
 
-    // Attach device to request for use in route handlers
-    req.device = device;
-    next();
+    // If no device found by API key, try to find an API key entry
+    const [prefix, key] = apiKey.split("_");
+    if (prefix && key) {
+      const hashedKey = crypto.createHash("sha256").update(key).digest("hex");
+      const apiKeyEntry = await ApiKey.findOne({
+        where: {
+          prefix: prefix,
+          key: hashedKey,
+          isActive: true,
+        },
+      });
+
+      if (apiKeyEntry) {
+        // If we found an API key entry, check if it has macAddress in metadata
+        const macAddress = apiKeyEntry.metadata?.macAddress;
+
+        if (macAddress) {
+          // Try to find a device with this MAC address
+          const deviceByMac = await Device.findOne({
+            where: {
+              macAddress: macAddress.replace(/:/g, "").toUpperCase(),
+            },
+          });
+
+          if (deviceByMac) {
+            req.device = deviceByMac;
+            next();
+            return;
+          }
+        }
+
+        // No device found but valid API key - create minimal device object
+        req.device = {
+          id: apiKeyEntry.deviceId,
+          name: apiKeyEntry.name,
+          apiKeyId: apiKeyEntry.id,
+        };
+        next();
+        return;
+      }
+    }
+
+    // No device or API key found
+    return res.status(401).json({
+      success: false,
+      message: "Authentication failed: Invalid API key",
+    });
   } catch (error) {
     res.status(500).json({
       success: false,

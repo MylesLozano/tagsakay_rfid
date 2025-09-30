@@ -3,12 +3,6 @@ import logger from "../config/logger.js";
 import { Op, Sequelize } from "sequelize";
 import { sequelize } from "../config/database.js";
 
-import { Rfid, RfidScan } from "../models/index.js";
-import { User } from "../models/User.js";
-import logger from "../config/logger.js";
-import { Op } from "sequelize";
-import { sequelize } from "../config/database.js";
-
 /**
  * Get unregistered RFID cards from scan logs
  * @param {Object} req - Express request object

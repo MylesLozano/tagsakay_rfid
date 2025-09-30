@@ -61,15 +61,10 @@ const logout = () => {
             <router-link to="/users">User Management</router-link>
           </li>
           <li v-if="isAdmin">
-            <router-link to="/apikeys">API Keys</router-link>
+            <router-link to="/devices">ESP32 Devices</router-link>
           </li>
-          <li>
-            <router-link
-              to="/devices"
-              class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
-            >
-              Devices
-            </router-link>
+          <li v-if="isAdmin">
+            <router-link to="/apikeys">Service API Keys</router-link>
           </li>
         </ul>
       </div>
@@ -88,15 +83,10 @@ const logout = () => {
           <router-link to="/users">User Management</router-link>
         </li>
         <li v-if="isAdmin">
-          <router-link to="/apikeys">API Keys</router-link>
+          <router-link to="/devices">ESP32 Devices</router-link>
         </li>
-        <li>
-          <router-link
-            to="/devices"
-            class="text-gray-300 hover:bg-gray-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium"
-          >
-            Devices
-          </router-link>
+        <li v-if="isAdmin">
+          <router-link to="/apikeys">Service API Keys</router-link>
         </li>
       </ul>
     </div>

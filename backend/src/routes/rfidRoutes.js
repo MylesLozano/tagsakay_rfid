@@ -10,6 +10,7 @@ import {
 } from "../controllers/rfidController.js";
 import { checkRecentTagScan } from "../controllers/tagScanChecker.js";
 import { getRecentUnregisteredScans } from "../controllers/recentUnregisteredScans.js";
+import { getAllRfidCards } from "../controllers/rfidExtensions.js";
 import { authenticateApiKey, rfidRateLimit } from "../middleware/deviceAuth.js";
 import { authenticateToken, authorizeRole } from "../middleware/auth.js";
 
@@ -25,6 +26,9 @@ router.post(
   authorizeRole(["admin"]),
   registerRfid
 );
+
+// Get all RFID cards (registered and unregistered)
+router.get("/", authenticateToken, authorizeRole(["admin"]), getAllRfidCards);
 
 // Get recent unregistered scans (for new card detection)
 // Use /scans/unregistered to avoid confusion with /:id pattern

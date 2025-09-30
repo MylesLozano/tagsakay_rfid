@@ -10,12 +10,17 @@ const loading = ref(true);
 const error = ref("");
 const success = ref("");
 
+// For key type management - default to service since device keys are created via Device Management
+// Only service keys are managed here now
+const keyType = ref("service");
+
 // For permission management
 const permissionsManage = ref(false);
 
 const newApiKey = ref<CreateApiKeyData>({
   name: "",
-  deviceId: "",
+  deviceId: `service-${Date.now()}`, // Service ID pattern
+  macAddress: "", // Not needed for service keys but may be required by API
   description: "",
   permissions: ["scan"],
 });
@@ -59,6 +64,11 @@ const createApiKey = async () => {
   error.value = "";
   success.value = "";
 
+  // For service keys, we set a generic deviceId if not specified
+  if (keyType.value === "service" && !newApiKey.value.deviceId.trim()) {
+    newApiKey.value.deviceId = `service-${Date.now()}`;
+  }
+
   // Prepare permissions array
   const permissions = ["scan"];
   if (permissionsManage.value) {
@@ -81,6 +91,7 @@ const createApiKey = async () => {
         id: newKey.id,
         name: newKey.name,
         deviceId: newKey.deviceId,
+        macAddress: newKey.macAddress,
         prefix: newKey.prefix,
         permissions: newKey.permissions,
         lastUsed: null,
@@ -95,10 +106,11 @@ const createApiKey = async () => {
     success.value = "API key created successfully!";
     isCreateModalOpen.value = false;
 
-    // Reset form
+    // Reset form with defaults for service keys
     newApiKey.value = {
       name: "",
-      deviceId: "",
+      deviceId: `service-${Date.now()}`,
+      macAddress: "",
       description: "",
       permissions: ["scan"],
     };
@@ -197,7 +209,26 @@ const copyToClipboard = (text: string) => {
       <h1 class="text-3xl font-bold">API Key Management</h1>
     </div>
 
-    <div class="flex justify-end mb-6">
+    <div class="flex justify-between mb-6">
+      <div>
+        <router-link to="/devices" class="btn btn-outline btn-sm">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+            />
+          </svg>
+          Manage Devices
+        </router-link>
+      </div>
       <button class="btn btn-primary" @click="isCreateModalOpen = true">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -211,8 +242,38 @@ const copyToClipboard = (text: string) => {
             clip-rule="evenodd"
           />
         </svg>
-        Create New API Key
+        Create New Service API Key
       </button>
+    </div>
+
+    <div class="alert alert-info mb-4">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        class="stroke-current shrink-0 w-6 h-6"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+        ></path>
+      </svg>
+      <div>
+        <p>
+          <span class="font-bold">Service API Keys:</span> This page is for
+          creating API keys for services, mobile apps, and other integrations.
+        </p>
+        <p class="mt-1">
+          For RFID device API keys, please go to the
+          <router-link to="/devices" class="underline font-semibold"
+            >Device Management</router-link
+          >
+          page, where API keys are automatically created when you register a
+          device.
+        </p>
+      </div>
     </div>
 
     <div class="alert alert-error" v-if="error">
@@ -249,7 +310,7 @@ const copyToClipboard = (text: string) => {
       <span>{{ success }}</span>
     </div>
 
-    <div v-if="createdKey" class="alert alert-info mb-4">
+    <div v-if="createdKey" class="alert alert-info mb-6">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         fill="none"
@@ -265,8 +326,8 @@ const copyToClipboard = (text: string) => {
       </svg>
       <div>
         <span class="font-bold">New API Key Created:</span>
-        <code class="block p-2 bg-base-300 mt-1 rounded">{{ createdKey }}</code>
-        <span class="text-sm"
+        <code class="block p-3 bg-base-300 mt-2 rounded">{{ createdKey }}</code>
+        <span class="text-sm mt-2 block"
           >This key will only be shown once. Please copy it now.</span
         >
       </div>
@@ -284,7 +345,9 @@ const copyToClipboard = (text: string) => {
         <thead>
           <tr>
             <th>Name</th>
+            <th>Type</th>
             <th>Device ID</th>
+            <th>MAC Address</th>
             <th>Prefix</th>
             <th>Permissions</th>
             <th>Status</th>
@@ -294,21 +357,59 @@ const copyToClipboard = (text: string) => {
         </thead>
         <tbody>
           <tr v-if="apiKeys.length === 0">
-            <td colspan="7" class="text-center">No API keys found</td>
+            <td colspan="9" class="text-center">No API keys found</td>
           </tr>
           <tr v-for="apiKey in apiKeys" :key="apiKey.id">
             <td>{{ apiKey.name }}</td>
+            <td>
+              <span
+                class="badge"
+                :class="apiKey.macAddress ? 'badge-primary' : 'badge-secondary'"
+              >
+                {{ apiKey.macAddress ? "Device" : "Service" }}
+              </span>
+            </td>
             <td>{{ apiKey.deviceId }}</td>
+            <td>{{ apiKey.macAddress || "N/A" }}</td>
             <td>{{ apiKey.prefix }}</td>
             <td>
               <div class="flex flex-wrap gap-1">
-                <span
-                  v-for="(permission, index) in apiKey.permissions"
-                  :key="index"
-                  class="badge badge-primary"
-                >
-                  {{ permission }}
-                </span>
+                <template v-if="Array.isArray(apiKey.permissions)">
+                  <!-- Check if permissions are individual characters -->
+                  <template
+                    v-if="
+                      apiKey.permissions.length > 2 &&
+                      apiKey.permissions.every((p) => p.length === 1) &&
+                      (apiKey.permissions.join('') === 'scan' ||
+                        apiKey.permissions.join('') === 'manage')
+                    "
+                  >
+                    <!-- Show joined permission as a single badge -->
+                    <span class="badge badge-primary">
+                      {{ apiKey.permissions.join("") }}
+                    </span>
+                  </template>
+                  <template v-else>
+                    <!-- Show each permission as a separate badge -->
+                    <span
+                      v-for="(permission, index) in apiKey.permissions"
+                      :key="index"
+                      class="badge badge-primary mr-1"
+                    >
+                      {{ permission }}
+                    </span>
+                  </template>
+                </template>
+                <template v-else-if="typeof apiKey.permissions === 'string'">
+                  <!-- Handle case where permissions is a single string -->
+                  <span class="badge badge-primary">
+                    {{ apiKey.permissions }}
+                  </span>
+                </template>
+                <template v-else>
+                  <!-- Fallback for any other case -->
+                  <span class="badge badge-primary">Unknown</span>
+                </template>
               </div>
             </td>
             <td>
@@ -350,50 +451,91 @@ const copyToClipboard = (text: string) => {
 
     <!-- Create API Key Modal -->
     <dialog :class="['modal', { 'modal-open': isCreateModalOpen }]">
-      <div class="modal-box">
-        <h3 class="font-bold text-lg">Create New API Key</h3>
+      <div class="modal-box max-w-2xl w-full max-h-[80vh] p-8">
+        <h3 class="font-bold text-xl">Create Service API Key</h3>
 
-        <form @submit.prevent="createApiKey">
-          <div class="form-control">
+        <form @submit.prevent="createApiKey" class="mt-6">
+          <div class="alert alert-warning mb-8">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="stroke-current shrink-0 h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            <div>
+              <p>
+                For device API keys, please use the
+                <router-link to="/devices" class="underline font-semibold"
+                  >Device Management</router-link
+                >
+                page instead.
+              </p>
+              <p class="text-sm mt-1">
+                This form is only for creating service API keys used by
+                applications.
+              </p>
+            </div>
+          </div>
+
+          <input type="hidden" v-model="keyType" value="service" />
+
+          <div class="form-control mb-4">
             <label class="label">
-              <span class="label-text">Name</span>
+              <span class="label-text font-medium me-2">Name</span>
             </label>
             <input
               type="text"
               v-model="newApiKey.name"
-              placeholder="ESP32 Device 1"
+              placeholder="Mobile App Service"
               class="input input-bordered"
               required
             />
           </div>
 
-          <div class="form-control">
+          <div class="form-control mb-4">
             <label class="label">
-              <span class="label-text">Device ID</span>
+              <span class="label-text font-medium me-2">Service ID</span>
             </label>
             <input
               type="text"
               v-model="newApiKey.deviceId"
-              placeholder="ESP32-001"
+              placeholder="mobile-app-service"
               class="input input-bordered"
               required
             />
+            <label class="label">
+              <span class="label-text-alt text-gray-600">
+                Use a descriptive service identifier (e.g., mobile-app,
+                admin-dashboard)
+              </span>
+            </label>
           </div>
 
-          <div class="form-control">
+          <!-- MAC Address removed as this is only for service keys -->
+
+          <div class="form-control mb-6">
             <label class="label">
-              <span class="label-text">Description (Optional)</span>
+              <span class="label-text font-medium me-2"
+                >Description (Optional)</span
+              >
             </label>
             <textarea
               v-model="newApiKey.description"
-              placeholder="RFID scanner at main entrance"
-              class="textarea textarea-bordered"
+              placeholder="API key for mobile app integration"
+              class="textarea textarea-bordered h-20"
             ></textarea>
           </div>
 
-          <div class="form-control">
+          <div class="form-control mb-6">
             <label class="label">
-              <span class="label-text">Permissions</span>
+              <span class="label-text font-medium">Permissions</span>
             </label>
             <div class="flex flex-wrap gap-2">
               <label class="label cursor-pointer justify-start gap-2">
@@ -414,12 +556,21 @@ const copyToClipboard = (text: string) => {
                 <span class="label-text">manage</span>
               </label>
             </div>
+            <div class="mt-4 text-sm text-gray-600">
+              <p class="mb-2">
+                <strong>scan</strong> - Required permission to scan RFID tags
+              </p>
+              <p>
+                <strong>manage</strong> - Permission to manage devices and API
+                keys
+              </p>
+            </div>
           </div>
 
-          <div class="modal-action">
+          <div class="modal-action mt-8">
             <button
               type="button"
-              class="btn"
+              class="btn btn-outline"
               @click="isCreateModalOpen = false"
             >
               Cancel

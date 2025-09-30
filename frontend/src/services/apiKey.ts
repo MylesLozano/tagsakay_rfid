@@ -12,11 +12,13 @@ interface ApiKey {
   createdBy: number;
   createdAt: string;
   updatedAt: string;
+  macAddress?: string; // MAC address field
 }
 
 interface CreateApiKeyData {
   name: string;
   deviceId: string;
+  macAddress?: string; // MAC address field
   description?: string;
   permissions?: string[];
 }
@@ -34,22 +36,26 @@ interface UpdateApiKeyData {
 
 const apiKeyService = {
   async createApiKey(data: CreateApiKeyData): Promise<any> {
-    const response = await apiClient.post("/keys", data);
+    const response = await apiClient.post("/apiKeys", data);
     return response.data;
   },
 
   async listApiKeys(): Promise<ApiKey[]> {
-    const response = await apiClient.get("/keys");
+    const response = await apiClient.get("/apiKeys");
     return response.data.data;
   },
 
   async updateApiKey(id: string, data: UpdateApiKeyData): Promise<ApiKey> {
-    const response = await apiClient.put(`/keys/${id}`, data);
+    const response = await apiClient.put(`/apiKeys/${id}`, data);
     return response.data;
   },
 
+  async deleteApiKey(id: string): Promise<void> {
+    await apiClient.delete(`/apiKeys/${id}`);
+  },
+
   async revokeApiKey(id: string): Promise<void> {
-    await apiClient.delete(`/keys/${id}`);
+    await apiClient.delete(`/apiKeys/${id}`);
   },
 };
 

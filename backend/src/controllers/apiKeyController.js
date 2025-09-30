@@ -9,8 +9,15 @@ import logger from "../config/logger.js";
  */
 export const createApiKey = async (req, res) => {
   try {
-    const { name, deviceId, description, permissions, metadata, type } =
-      req.body;
+    const {
+      name,
+      deviceId,
+      macAddress,
+      description,
+      permissions,
+      metadata,
+      type,
+    } = req.body;
 
     if (!name || !deviceId) {
       return res.status(400).json({
@@ -28,6 +35,38 @@ export const createApiKey = async (req, res) => {
     // Create a hashed version of the API key for storage
     const hashedKey = crypto.createHash("sha256").update(apiKey).digest("hex");
 
+    // Prepare metadata with MAC address if provided
+    const metadataWithMAC = {
+      ...(metadata || {}),
+      ...(macAddress ? { macAddress } : {}),
+    };
+
+    // Ensure permissions are properly formatted (not individual characters)
+    let formattedPermissions = [];
+
+    if (permissions) {
+      // If permissions were provided, ensure they're proper strings
+      if (Array.isArray(permissions)) {
+        // Check if it's a character array that needs to be joined
+        if (
+          permissions.length > 2 &&
+          permissions.every((p) => p.length === 1)
+        ) {
+          // It's probably a character array, join it
+          formattedPermissions = [permissions.join("")];
+        } else {
+          // It's a normal array of permission strings
+          formattedPermissions = permissions;
+        }
+      } else if (typeof permissions === "string") {
+        // If it's a single string, wrap in array
+        formattedPermissions = [permissions];
+      }
+    } else {
+      // Default permissions
+      formattedPermissions = ["scan"];
+    }
+
     // Create new API key record
     const newApiKey = await ApiKey.create({
       name,
@@ -35,10 +74,10 @@ export const createApiKey = async (req, res) => {
       description: description || "",
       key: hashedKey,
       prefix,
-      permissions: permissions || ["scan"],
+      permissions: formattedPermissions,
       createdBy: req.user.id,
       lastUsed: null,
-      metadata: metadata || {},
+      metadata: metadataWithMAC,
       type: type || "device",
     });
 
@@ -56,6 +95,7 @@ export const createApiKey = async (req, res) => {
         permissions: newApiKey.permissions,
         createdAt: newApiKey.createdAt,
         metadata: newApiKey.metadata,
+        macAddress: macAddress || null, // Include MAC address in response
         type: newApiKey.type,
       },
     });
@@ -92,10 +132,19 @@ export const listApiKeys = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
+    // Map the results to include macAddress from metadata
+    const formattedApiKeys = apiKeys.map((key) => {
+      const plainKey = key.get({ plain: true });
+      return {
+        ...plainKey,
+        macAddress: plainKey.metadata?.macAddress || null,
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      count: apiKeys.length,
-      data: apiKeys,
+      count: formattedApiKeys.length,
+      data: formattedApiKeys,
     });
   } catch (error) {
     logger.error(`Error listing API keys: ${error.message}`, { error });
