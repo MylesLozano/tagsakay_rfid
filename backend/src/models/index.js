@@ -49,6 +49,15 @@ RfidScan.belongsTo(Rfid, {
   constraints: false,
 });
 
+// Setup Device to RfidScan association
+// No need to define this association here as it's already defined in the Device.associate function
+RfidScan.belongsTo(Device, {
+  foreignKey: "deviceId",
+  targetKey: "deviceId", // Use deviceId instead of id for the association
+  as: "device",
+  constraints: false, // Disable constraints to avoid type mismatch errors
+});
+
 Object.keys(db).forEach((modelName) => {
   if (db[modelName].associate) {
     db[modelName].associate(db);

@@ -334,7 +334,7 @@ export const registerDevice = async (req, res) => {
       description: `API key for device at ${location}`,
       key: hashedKey,
       prefix,
-      permissions: ["scan"],
+      permissions: ["scan"], // Ensure this is an array with the string "scan"
       createdBy: req.user.id,
       metadata: {
         macAddress: formattedMacAddress,
@@ -351,6 +351,7 @@ export const registerDevice = async (req, res) => {
       name,
       apiKey: `${prefix}_${apiKeyValue}`, // Store full API key in device record
       isActive: true,
+      // No need to set id, it will be auto-incremented
     });
 
     res.status(201).json({

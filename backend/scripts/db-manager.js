@@ -4,6 +4,8 @@
  */
 
 import pg from "pg";
+import dotenv from "dotenv";
+dotenv.config();
 import { exec } from "child_process";
 import { promisify } from "util";
 import logger from "../src/config/logger.js";
@@ -22,7 +24,7 @@ async function terminateConnections() {
     const pool = new Pool({
       user: process.env.DB_USER || "postgres",
       host: process.env.DB_HOST || "localhost",
-      password: process.env.DB_PASSWORD || "Postgre4017",
+      password: process.env.DB_PASSWORD || "Postgre1234",
       port: process.env.DB_PORT || 5432,
       database: "postgres", // Connect to default database
     });

@@ -56,7 +56,9 @@ export const seedDevices = async (options = { resetData: false }) => {
     // Clear existing devices if resetData is true
     if (options.resetData) {
       logger.info("Deleting existing devices...");
-      await Device.destroy({ where: {}, force: true });
+      // Using raw query since Device is not a Sequelize model with destroy method
+      const sequelize = await import("../src/config/database.js");
+      await sequelize.default.query('DELETE FROM "Devices"');
     }
 
     // Check if any devices already exist

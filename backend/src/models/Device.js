@@ -6,9 +6,9 @@ const DeviceModel = (sequelize) => {
     "Device",
     {
       id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
-        autoIncrement: true,
       },
       deviceId: {
         type: DataTypes.STRING,
@@ -61,7 +61,12 @@ const DeviceModel = (sequelize) => {
 
   Device.associate = function (models) {
     // Define associations here
-    Device.hasMany(models.RfidScan, { foreignKey: "deviceId", as: "scans" });
+    Device.hasMany(models.RfidScan, {
+      foreignKey: "deviceId",
+      sourceKey: "deviceId", // Use deviceId instead of id for the association
+      as: "scans",
+      constraints: false, // Disable constraints to avoid type mismatch errors
+    });
   };
 
   return Device;

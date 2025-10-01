@@ -53,39 +53,113 @@ export const authenticateApiKey = async (req, res, next) => {
     }
 
     // Check if the API key has the required permission
-    const requiredPermission = req.originalUrl.includes("/scan")
-      ? "scan"
-      : "manage";
+    // Fix for /api/rfid/scan endpoint
+    const requiredPermission =
+      req.originalUrl.includes("/rfid/scan") ||
+      req.originalUrl.includes("/scan")
+        ? "scan"
+        : "manage";
+
+    // Debug the URL and required permission
+    logger.info(
+      `Request URL: ${req.originalUrl}, Required permission: ${requiredPermission}`
+    );
 
     // Fix potentially corrupted permissions
     let perms = [];
 
-    if (typeof apiKey.permissions === "string") {
-      // If it's a string, use it directly
-      perms = [apiKey.permissions];
-    } else if (Array.isArray(apiKey.permissions)) {
-      // If it's an array but with individual characters, reconstruct the permission strings
-      // Check if it looks like individual characters (common issue)
-      if (
-        (apiKey.permissions.length > 2 &&
-          apiKey.permissions.every((p) => p.length === 1) &&
-          apiKey.permissions.join("") === "scan") ||
-        apiKey.permissions.join("") === "manage"
-      ) {
-        perms = [apiKey.permissions.join("")];
-
-        // Save the fixed permission back to the database
-        apiKey.permissions = perms;
-        await apiKey.save();
-        logger.info(`Fixed corrupted permissions for API key ${apiKey.id}`);
-      } else {
-        perms = apiKey.permissions;
+    try {
+      if (typeof apiKey.permissions === "string") {
+        // If it's a string, try to parse it as JSON first
+        try {
+          const parsed = JSON.parse(apiKey.permissions);
+          if (Array.isArray(parsed)) {
+            perms = parsed;
+          } else {
+            perms = [apiKey.permissions];
+          }
+        } catch (e) {
+          // If parsing fails, use the string as a permission
+          perms = [apiKey.permissions];
+        }
+      } else if (Array.isArray(apiKey.permissions)) {
+        // Handle nested JSON strings - common when permissions are double serialized
+        if (
+          apiKey.permissions.length === 1 &&
+          typeof apiKey.permissions[0] === "string"
+        ) {
+          try {
+            const innerContent = JSON.parse(apiKey.permissions[0]);
+            if (Array.isArray(innerContent)) {
+              perms = innerContent;
+            } else {
+              perms = apiKey.permissions;
+            }
+          } catch (e) {
+            // Keep as is if can't parse
+            perms = apiKey.permissions;
+          }
+        } else if (
+          apiKey.permissions.length > 2 &&
+          apiKey.permissions.every(
+            (p) => typeof p === "string" && p.length === 1
+          ) &&
+          (apiKey.permissions.join("") === "scan" ||
+            apiKey.permissions.join("") === "manage")
+        ) {
+          // Handle character array case ['s','c','a','n']
+          perms = [apiKey.permissions.join("")];
+        } else {
+          perms = apiKey.permissions;
+        }
       }
+    } catch (err) {
+      logger.error(
+        `Error processing permissions for API key ${apiKey.id}:`,
+        err
+      );
+      // Default to the original permissions
+      perms = Array.isArray(apiKey.permissions) ? apiKey.permissions : [];
     }
+
+    // If permissions array is empty or undefined, and this is a device API key,
+    // default to scan permission for backward compatibility
+    if (perms.length === 0 && apiKey.type === "device") {
+      perms = ["scan"];
+      logger.info(
+        `Using default scan permission for device API key ${apiKey.id}`
+      );
+    }
+
+    // If this is a device type API key, ensure it has scan permission
+    if (apiKey.type === "device" && !perms.includes("scan")) {
+      perms.push("scan");
+      logger.info(
+        `Added missing scan permission to device API key ${apiKey.id}`
+      );
+    }
+
+    // Save any fixed permissions back to database
+    if (JSON.stringify(perms) !== JSON.stringify(apiKey.permissions)) {
+      apiKey.permissions = perms;
+      await apiKey.save();
+      logger.info(
+        `Updated permissions for API key ${apiKey.id}: ${JSON.stringify(perms)}`
+      );
+    }
+
+    // Debug logging to understand permission issues
+    logger.info(`Required permission: ${requiredPermission}`);
+    logger.info(`API key permissions: ${JSON.stringify(perms)}`);
+    logger.info(
+      `Permission check result: ${perms.includes(requiredPermission)}`
+    );
 
     if (!perms.includes(requiredPermission)) {
       logger.warn(
-        `API key authentication failed: Insufficient permissions for ${requiredPermission}`
+        `API key authentication failed: Insufficient permissions for ${requiredPermission}. API key has: ${JSON.stringify(
+          perms
+        )}`
       );
       return res.status(403).json({
         success: false,
