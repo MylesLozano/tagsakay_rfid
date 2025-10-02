@@ -7,6 +7,7 @@ import { Sequelize } from "sequelize";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { SERVER_CONFIG, DB_CONFIG } from "../src/config/env.js";
 import logger from "../src/config/logger.js";
 
 // Get the directory name
@@ -19,14 +20,15 @@ async function runMigrations() {
   try {
     logger.info("🚀 Running database migrations...");
 
-    // Read configuration from config file
-    const configPath = path.resolve(__dirname, "../config/config.json");
-    const configFile = fs.readFileSync(configPath, "utf8");
-    const config = JSON.parse(configFile);
-
-    // Get environment-specific configuration
-    const env = process.env.NODE_ENV || "development";
-    const dbConfig = config[env];
+    // Use centralized database configuration
+    const dbConfig = {
+      database: DB_CONFIG.NAME,
+      username: DB_CONFIG.USER,
+      password: DB_CONFIG.PASSWORD,
+      host: DB_CONFIG.HOST,
+      port: DB_CONFIG.PORT,
+      dialect: DB_CONFIG.DIALECT,
+    };
 
     // Create Sequelize instance
     const sequelize = new Sequelize(
@@ -35,6 +37,7 @@ async function runMigrations() {
       dbConfig.password,
       {
         host: dbConfig.host,
+        port: dbConfig.port,
         dialect: dbConfig.dialect,
         logging: (msg) => logger.debug(msg),
       }

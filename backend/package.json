@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
+    "config:verify": "node scripts/verify-config.js",
     "db:reset": "node scripts/db-manager.js reset",
     "db:init": "node scripts/db-manager.js init",
     "db:seed": "node scripts/db-manager.js seed",

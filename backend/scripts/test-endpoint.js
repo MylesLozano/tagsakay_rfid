@@ -3,7 +3,8 @@
  * Use this script to test API endpoints from the command line
  */
 
-import fetch from "node-fetch";
+import axios from "axios";
+import { API_CONFIG } from "../src/config/env.js";
 import logger from "../src/config/logger.js";
 import fs from "fs";
 import path from "path";
@@ -94,7 +95,7 @@ const ENDPOINTS = {
  */
 async function sendRequest(endpoint, token = null, customData = null) {
   try {
-    const apiUrl = process.env.API_URL || DEFAULT_API_URL;
+    const apiUrl = API_CONFIG.URL;
     const url = `${apiUrl}${endpoint.path}`;
 
     // Prepare headers

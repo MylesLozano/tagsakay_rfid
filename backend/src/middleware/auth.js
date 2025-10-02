@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { JWT_CONFIG } from "../config/env.js";
 
 /**
  * Generate a JWT token for a user
@@ -6,12 +7,10 @@ import jwt from "jsonwebtoken";
  * @returns {String} JWT token
  */
 export const generateToken = (user) => {
-  const expiresIn =
-    process.env.JWT_EXPIRES_IN || process.env.JWT_EXPIRE || "1h";
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn }
+    JWT_CONFIG.SECRET,
+    { expiresIn: JWT_CONFIG.EXPIRES_IN }
   );
 };
 
@@ -32,7 +31,7 @@ export const authenticateToken = (req, res, next) => {
 
   try {
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_CONFIG.SECRET);
     req.user = decoded; // Add user info to request
     next();
   } catch (error) {

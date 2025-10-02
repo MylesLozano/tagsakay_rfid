@@ -1,16 +1,14 @@
 import { Sequelize } from "sequelize";
-import dotenv from "dotenv";
-// Always load .env for runtime; test env no longer used
-dotenv.config();
+import { DB_CONFIG } from "./env.js";
 
 const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
+  DB_CONFIG.NAME,
+  DB_CONFIG.USER,
+  DB_CONFIG.PASSWORD,
   {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    dialect: "postgres",
+    host: DB_CONFIG.HOST,
+    port: DB_CONFIG.PORT,
+    dialect: DB_CONFIG.DIALECT,
     logging: false,
   }
 );

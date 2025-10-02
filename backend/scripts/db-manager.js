@@ -4,10 +4,9 @@
  */
 
 import pg from "pg";
-import dotenv from "dotenv";
-dotenv.config();
 import { exec } from "child_process";
 import { promisify } from "util";
+import { DB_CONFIG } from "../src/config/env.js";
 import logger from "../src/config/logger.js";
 
 const execPromise = promisify(exec);
@@ -22,10 +21,10 @@ async function terminateConnections() {
 
     // Connect to default postgres database to perform operations
     const pool = new Pool({
-      user: process.env.DB_USER || "postgres",
-      host: process.env.DB_HOST || "localhost",
-      password: process.env.DB_PASSWORD || "Admin123",
-      port: process.env.DB_PORT || 5432,
+      user: DB_CONFIG.USER,
+      host: DB_CONFIG.HOST,
+      password: DB_CONFIG.PASSWORD,
+      port: DB_CONFIG.PORT,
       database: "postgres", // Connect to default database
     });
 
@@ -33,9 +32,7 @@ async function terminateConnections() {
     await pool.query(`
       SELECT pg_terminate_backend(pid)
       FROM pg_stat_activity
-      WHERE datname = '${
-        process.env.DB_NAME || "tagsakay_db"
-      }' AND pid <> pg_backend_pid();
+      WHERE datname = '${DB_CONFIG.NAME}' AND pid <> pg_backend_pid();
     `);
 
     return pool;
@@ -51,15 +48,11 @@ async function terminateConnections() {
 async function resetDatabase(pool) {
   try {
     logger.info("💥 Dropping database if it exists...");
-    await pool.query(
-      `DROP DATABASE IF EXISTS ${process.env.DB_NAME || "tagsakay_db"};`
-    );
+    await pool.query(`DROP DATABASE IF EXISTS ${DB_CONFIG.NAME};`);
     logger.info("Database dropped successfully");
 
     logger.info("🏗️ Creating fresh database...");
-    await pool.query(
-      `CREATE DATABASE ${process.env.DB_NAME || "tagsakay_db"};`
-    );
+    await pool.query(`CREATE DATABASE ${DB_CONFIG.NAME};`);
     logger.info("Database created successfully");
 
     // Close the admin connection pool
