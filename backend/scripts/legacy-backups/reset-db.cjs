@@ -11,7 +11,7 @@ async function resetDatabase() {
     const pool = new Pool({
       user: "postgres",
       host: "localhost",
-      password: "Postgre4017",
+      password: "Admin123",
       port: 5432,
       database: "postgres",
     });

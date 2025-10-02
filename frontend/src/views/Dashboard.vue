@@ -6,6 +6,7 @@ import type { User } from "../services/auth";
 import RfidChart from "../components/RfidChart.vue";
 import RfidDeviceStatus from "../components/RfidDeviceStatus.vue";
 import RfidLiveScans from "../components/RfidLiveScans.vue";
+import rfidStatsService from "../services/rfidStats";
 import { Line, Pie, Bar } from "vue-chartjs";
 import {
   Chart as ChartJS,
@@ -42,33 +43,69 @@ const loading = ref(true);
 const activePeriod = ref<"weekly" | "monthly">("weekly");
 const searchQuery = ref("");
 
-// Function to handle logout
-const handleLogout = () => {
-  authService.logout();
-  router.push("/login");
-  // Dispatch storage event to notify other components
-  globalThis.window.dispatchEvent(new globalThis.Event("storage"));
-};
+// Real-time statistics from backend
+const todayScans = ref(0);
+const totalRegisteredCards = ref(0);
+const activeDevices = ref(0);
+const totalUsers = ref(0);
+const weeklyScansData = ref<any[]>([]);
+const recentScansCount = ref(0);
 
-const todayScans = ref(42);
-const activeDrivers = ref(25);
-const idleDrivers = ref(10);
-const absentDrivers = ref(5);
+// User statistics
+const userStats = ref({
+  drivers: 0,
+  admins: 0,
+  superadmins: 0,
+});
 
-// Current day trips data
-const dailyTripsData = computed<ChartData<"line">>(() => ({
-  labels: ["06/30", "07/01", "07/02", "07/03", "07/04", "07/05", "07/06"],
-  datasets: [
-    {
-      label: "Daily Trips",
-      backgroundColor: "rgba(59, 130, 246, 0.2)",
-      borderColor: "rgba(59, 130, 246, 1)",
-      data: [145, 170, 165, 165, 185, 185, 180],
-      tension: 0.4,
-      fill: true,
-    },
-  ],
-}));
+// Device statistics
+const deviceStats = ref({
+  online: 0,
+  offline: 0,
+  total: 0,
+});
+
+// Current day trips data - based on weekly stats
+const dailyTripsData = computed<ChartData<"line">>(() => {
+  if (weeklyScansData.value.length === 0) {
+    // Fallback data
+    return {
+      labels: ["06/30", "07/01", "07/02", "07/03", "07/04", "07/05", "07/06"],
+      datasets: [
+        {
+          label: "Daily Scans",
+          backgroundColor: "rgba(59, 130, 246, 0.2)",
+          borderColor: "rgba(59, 130, 246, 1)",
+          data: [145, 170, 165, 165, 185, 185, 180],
+          tension: 0.4,
+          fill: true,
+        },
+      ],
+    };
+  }
+
+  return {
+    labels: weeklyScansData.value.map((item) => {
+      const date = new Date();
+      const dayIndex = weeklyScansData.value.indexOf(item);
+      date.setDate(date.getDate() - (6 - dayIndex));
+      return date.toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+      });
+    }),
+    datasets: [
+      {
+        label: "Daily Scans",
+        backgroundColor: "rgba(59, 130, 246, 0.2)",
+        borderColor: "rgba(59, 130, 246, 1)",
+        data: weeklyScansData.value.map((item) => item.count),
+        tension: 0.4,
+        fill: true,
+      },
+    ],
+  };
+});
 
 const dailyTripsOptions = computed<ChartOptions<"line">>(() => ({
   responsive: true,
@@ -100,17 +137,21 @@ const dailyTripsOptions = computed<ChartOptions<"line">>(() => ({
   },
 }));
 
-// Driver status data
+// Device status data - based on real device statistics
 const driverStatusData = computed<ChartData<"pie">>(() => ({
-  labels: ["Active", "Idle", "Absent"],
+  labels: ["Online", "Offline", "Total Devices"],
   datasets: [
     {
       backgroundColor: [
-        "rgba(59, 130, 246, 1)", // Primary
-        "rgba(96, 165, 250, 1)", // Primary light
-        "rgba(147, 195, 255, 1)", // Primary lighter
+        "rgba(34, 197, 94, 1)", // Green for online
+        "rgba(239, 68, 68, 1)", // Red for offline
+        "rgba(156, 163, 175, 1)", // Gray for total
       ],
-      data: [activeDrivers.value, idleDrivers.value, absentDrivers.value],
+      data: [
+        deviceStats.value.online,
+        deviceStats.value.offline,
+        deviceStats.value.total,
+      ],
       borderWidth: 0,
     },
   ],
@@ -126,17 +167,21 @@ const driverStatusOptions = computed<ChartOptions<"pie">>(() => ({
   },
 }));
 
-// User access overview data
+// User access overview data - based on real user statistics
 const userAccessData = computed<ChartData<"pie">>(() => ({
-  labels: ["Drivers", "Admin", "SAdmin"],
+  labels: ["Drivers", "Admins", "Super Admins"],
   datasets: [
     {
       backgroundColor: [
-        "rgba(59, 130, 246, 1)", // Primary
-        "rgba(96, 165, 250, 1)", // Primary light
-        "rgba(147, 195, 255, 1)", // Primary lighter
+        "rgba(59, 130, 246, 1)", // Primary for drivers
+        "rgba(96, 165, 250, 1)", // Primary light for admins
+        "rgba(147, 195, 255, 1)", // Primary lighter for super admins
       ],
-      data: [40, 2, 1],
+      data: [
+        userStats.value.drivers,
+        userStats.value.admins,
+        userStats.value.superadmins,
+      ],
       borderWidth: 0,
     },
   ],
@@ -152,35 +197,62 @@ const userAccessOptions = computed<ChartOptions<"pie">>(() => ({
   },
 }));
 
-// Historical trips data - 14 days
-const historicalTripsData = computed<ChartData<"bar">>(() => ({
-  labels: [
-    "06/22",
-    "06/23",
-    "06/24",
-    "06/25",
-    "06/26",
-    "06/27",
-    "06/28",
-    "06/29",
-    "06/30",
-    "07/01",
-    "07/02",
-    "07/03",
-    "07/04",
-    "07/05",
-  ],
-  datasets: [
-    {
-      label: "Trips",
-      backgroundColor: "rgba(59, 130, 246, 0.8)",
-      data: [
-        180, 190, 130, 140, 155, 150, 190, 180, 120, 140, 150, 140, 180, 175,
+// Historical trips data - based on real scan data
+const historicalTripsData = computed<ChartData<"bar">>(() => {
+  if (weeklyScansData.value.length === 0) {
+    // Fallback data
+    return {
+      labels: [
+        "06/22",
+        "06/23",
+        "06/24",
+        "06/25",
+        "06/26",
+        "06/27",
+        "06/28",
+        "06/29",
+        "06/30",
+        "07/01",
+        "07/02",
+        "07/03",
+        "07/04",
+        "07/05",
       ],
-      borderRadius: 4,
-    },
-  ],
-}));
+      datasets: [
+        {
+          label: "Scans",
+          backgroundColor: "rgba(59, 130, 246, 0.8)",
+          data: [
+            180, 190, 130, 140, 155, 150, 190, 180, 120, 140, 150, 140, 180,
+            175,
+          ],
+          borderRadius: 4,
+        },
+      ],
+    };
+  }
+
+  // Use the last 14 days of data (extend weekly to bi-weekly if needed)
+  const extendedData = [...weeklyScansData.value, ...weeklyScansData.value];
+  return {
+    labels: extendedData.slice(0, 14).map((_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (13 - index));
+      return date.toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+      });
+    }),
+    datasets: [
+      {
+        label: "Scans",
+        backgroundColor: "rgba(59, 130, 246, 0.8)",
+        data: extendedData.slice(0, 14).map((item) => item.count || 0),
+        borderRadius: 4,
+      },
+    ],
+  };
+});
 
 const historicalTripsOptions = computed<ChartOptions<"bar">>(() => ({
   responsive: true,
@@ -217,9 +289,51 @@ const userRoleDisplay = computed(() => {
   }
 });
 
+// Load statistics from backend
+const loadStatistics = async () => {
+  try {
+    loading.value = true;
+
+    const stats = await rfidStatsService.getDashboardStats();
+
+    // Update all reactive values
+    todayScans.value = stats.todayScans;
+    totalRegisteredCards.value = stats.totalRegisteredCards;
+    activeDevices.value = stats.onlineDevices;
+    totalUsers.value = stats.totalUsers;
+    weeklyScansData.value = stats.weeklyStats;
+    recentScansCount.value = stats.recentScansCount;
+
+    userStats.value = {
+      drivers: stats.userStats.drivers,
+      admins: stats.userStats.admins,
+      superadmins: stats.userStats.superadmins,
+    };
+
+    deviceStats.value = {
+      online: stats.onlineDevices,
+      offline: stats.offlineDevices,
+      total: stats.totalDevices,
+    };
+  } catch (error) {
+    console.error("Error loading dashboard statistics:", error);
+    // Keep default values on error
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Function to handle logout
+const handleLogout = () => {
+  authService.logout();
+  router.push("/login");
+  // Dispatch storage event to notify other components
+  globalThis.window.dispatchEvent(new globalThis.Event("storage"));
+};
+
 onMounted(async () => {
   user.value = authService.getUser();
-  loading.value = false;
+  await loadStatistics();
 });
 </script>
 
@@ -278,15 +392,15 @@ onMounted(async () => {
 
           <router-link
             v-if="user?.role === 'admin' || user?.role === 'superadmin'"
-            to="/apikeys"
+            to="/rfid-cards"
             class="flex items-center px-4 py-3 text-base-content/70 hover:text-base-content hover:bg-base-content/5 rounded-lg"
           >
             <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 24 24">
               <path
-                d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z"
+                d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"
               />
             </svg>
-            API Keys
+            RFID Cards
           </router-link>
 
           <router-link
@@ -304,28 +418,29 @@ onMounted(async () => {
 
           <router-link
             v-if="user?.role === 'admin' || user?.role === 'superadmin'"
-            to="/rfid-cards"
+            to="/devices"
             class="flex items-center px-4 py-3 text-base-content/70 hover:text-base-content hover:bg-base-content/5 rounded-lg"
           >
             <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 24 24">
               <path
-                d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"
+                d="M9 4C9 3.45 9.45 3 10 3H14C14.55 3 15 3.45 15 4V6H17C18.1 6 19 6.9 19 8V19C19 20.1 18.1 21 17 21H7C5.9 21 5 20.1 5 19V8C5 6.9 5.9 6 7 6H9V4ZM7 8V19H17V8H7ZM10 10H14V12H10V10ZM10 14H14V16H10V14Z"
               />
             </svg>
-            RFID Cards
+            ESP32 Devices
           </router-link>
 
-          <a
-            href="#"
+          <router-link
+            v-if="user?.role === 'admin' || user?.role === 'superadmin'"
+            to="/apikeys"
             class="flex items-center px-4 py-3 text-base-content/70 hover:text-base-content hover:bg-base-content/5 rounded-lg"
           >
             <svg class="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 24 24">
               <path
-                d="M12 2L13.09 8.26L22 9L13.09 15.74L12 22L10.91 15.74L2 9L10.91 8.26L12 2Z"
+                d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z"
               />
             </svg>
-            Reports & Logs
-          </a>
+            API Keys
+          </router-link>
         </nav>
       </div>
     </div>
@@ -334,9 +449,9 @@ onMounted(async () => {
     <div class="flex-1 flex flex-col">
       <!-- Top Bar -->
       <div class="h-[150px] px-8 py-5 flex items-start justify-between">
-        <!-- Search Bar -->
-        <div class="relative flex-1 max-w-[998px]">
-          <div class="relative">
+        <!-- Search Bar and Refresh Button -->
+        <div class="relative flex-1 max-w-[998px] flex items-center space-x-4">
+          <div class="relative flex-1">
             <svg
               class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-base-content"
               fill="none"
@@ -357,6 +472,29 @@ onMounted(async () => {
               class="w-full h-[35px] pl-10 pr-4 bg-transparent border border-base-content/30 rounded-md text-base-content placeholder-base-content/50 focus:outline-none focus:border-primary"
             />
           </div>
+
+          <!-- Refresh Statistics Button -->
+          <button
+            @click="loadStatistics"
+            :disabled="loading"
+            class="btn btn-circle btn-sm btn-ghost"
+            title="Refresh Statistics"
+          >
+            <svg
+              class="w-5 h-5"
+              :class="{ 'animate-spin': loading }"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
         </div>
 
         <!-- User Menu -->
@@ -503,7 +641,7 @@ onMounted(async () => {
               </div>
               <div class="stat">
                 <div class="stat-title">Active Readers</div>
-                <div class="stat-value">2</div>
+                <div class="stat-value">{{ deviceStats.online }}</div>
               </div>
               <div class="stat">
                 <div class="stat-title">Scans Today</div>
@@ -577,21 +715,21 @@ onMounted(async () => {
 
             <div class="space-y-3">
               <div class="flex items-center">
-                <div class="w-4 h-4 bg-primary rounded-sm mr-3"></div>
+                <div class="w-4 h-4 bg-green-500 rounded-sm mr-3"></div>
                 <span class="text-base-content/80 text-sm"
-                  >Active - {{ activeDrivers }}</span
+                  >Online - {{ deviceStats.online }}</span
                 >
               </div>
               <div class="flex items-center">
-                <div class="w-4 h-4 bg-primary-focus rounded-sm mr-3"></div>
+                <div class="w-4 h-4 bg-red-500 rounded-sm mr-3"></div>
                 <span class="text-base-content/80 text-sm"
-                  >Idle - {{ idleDrivers }}</span
+                  >Offline - {{ deviceStats.offline }}</span
                 >
               </div>
               <div class="flex items-center">
-                <div class="w-4 h-4 bg-primary/50 rounded-sm mr-3"></div>
+                <div class="w-4 h-4 bg-gray-400 rounded-sm mr-3"></div>
                 <span class="text-base-content/80 text-sm"
-                  >Absent - {{ absentDrivers }}</span
+                  >Total - {{ deviceStats.total }}</span
                 >
               </div>
             </div>

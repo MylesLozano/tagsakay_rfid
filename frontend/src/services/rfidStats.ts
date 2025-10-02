@@ -131,6 +131,72 @@ const rfidStatsService = {
     }
   },
 
+  /**
+   * Get comprehensive dashboard statistics
+   */
+  async getDashboardStats() {
+    try {
+      const [weeklyStats, recentScans, devices, rfidCards, users] =
+        await Promise.all([
+          this.getWeeklyStats(),
+          this.getRecentScans(100),
+          api.get("/devices"),
+          api.get("/rfid"),
+          api.get("/users"),
+        ]);
+
+      // Calculate today's scans
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayScans = recentScans.filter(
+        (scan) =>
+          new Date(scan.scanTime) >= todayStart && scan.status === "success"
+      ).length;
+
+      // Calculate device statistics
+      const allDevices = devices.data || [];
+      const activeDevicesData = await this.getConnectedDevices();
+      const onlineDevices = activeDevicesData.filter(
+        (d) => d.status === "online"
+      ).length;
+
+      // Calculate user statistics
+      const allUsers = users.data || [];
+      const userStats = {
+        drivers: allUsers.filter((u: any) => u.role === "driver").length,
+        admins: allUsers.filter((u: any) => u.role === "admin").length,
+        superadmins: allUsers.filter((u: any) => u.role === "superadmin")
+          .length,
+        total: allUsers.length,
+      };
+
+      return {
+        todayScans,
+        totalRegisteredCards: rfidCards.data?.length || 0,
+        totalDevices: allDevices.length,
+        onlineDevices,
+        offlineDevices: allDevices.length - onlineDevices,
+        totalUsers: allUsers.length,
+        userStats,
+        weeklyStats,
+        recentScansCount: recentScans.length,
+      };
+    } catch (error) {
+      console.error("Error fetching dashboard statistics:", error);
+      return {
+        todayScans: 0,
+        totalRegisteredCards: 0,
+        totalDevices: 0,
+        onlineDevices: 0,
+        offlineDevices: 0,
+        totalUsers: 0,
+        userStats: { drivers: 0, admins: 0, superadmins: 0, total: 0 },
+        weeklyStats: [],
+        recentScansCount: 0,
+      };
+    }
+  },
+
   // Expose reactive references
   recentScans,
   loading,

@@ -64,7 +64,7 @@ const logout = () => {
             <router-link to="/devices">ESP32 Devices</router-link>
           </li>
           <li v-if="isAdmin">
-            <router-link to="/apikeys">Service API Keys</router-link>
+            <router-link to="/apikeys">API Keys</router-link>
           </li>
         </ul>
       </div>
@@ -86,7 +86,7 @@ const logout = () => {
           <router-link to="/devices">ESP32 Devices</router-link>
         </li>
         <li v-if="isAdmin">
-          <router-link to="/apikeys">Service API Keys</router-link>
+          <router-link to="/apikeys">API Keys</router-link>
         </li>
       </ul>
     </div>
