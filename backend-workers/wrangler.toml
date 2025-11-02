@@ -1,0 +1,22 @@
+name = "tagsakay-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Environment variables (add these via Wrangler CLI or dashboard)
+# wrangler secret put DATABASE_URL
+# wrangler secret put JWT_SECRET
+
+[env.production]
+name = "tagsakay-api"
+routes = [
+  { pattern = "api.tagsakay.com/*", custom_domain = true }
+]
+
+[env.staging]
+name = "tagsakay-api-staging"
+
+# Bindings (if using D1, KV, R2, etc. - optional)
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "tagsakay"
+# database_id = "xxx"

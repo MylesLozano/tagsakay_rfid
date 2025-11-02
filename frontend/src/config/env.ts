@@ -2,6 +2,11 @@
  * Centralized Environment Configuration for Frontend
  * This file standardizes all environment variable access across the Vue application
  * Import this file instead of using import.meta.env directly
+ *
+ * Backend API Format (backend-workers):
+ * - Success: { success: true, data: {...}, message?: "..." }
+ * - Error: { success: false, message: "...", error?: "...", errors?: [...] }
+ * - Rate Limited: { success: false, message: "...", retryAfter: "60 seconds" }
  */
 
 // Validate required environment variables
@@ -16,7 +21,7 @@ if (missingVars.length > 0) {
 
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
+  BASE_URL: import.meta.env.VITE_API_URL || "http://localhost:8787/api",
   TIMEOUT: parseInt(import.meta.env.VITE_API_TIMEOUT) || 10000,
 };
 
