@@ -69,9 +69,26 @@
 // API Configuration
 // =======================
 
-// Default API endpoint (override in main sketch if needed)
+// WebSocket endpoint (primary communication method)
+#ifndef WS_HOST
+  #define WS_HOST "YOUR_SERVER_IP"  // Change to your server IP (e.g., "192.168.1.100")
+#endif
+
+#ifndef WS_PORT
+  #define WS_PORT 8787  // Cloudflare Workers port
+#endif
+
+#ifndef WS_PATH
+  #define WS_PATH "/ws/device"  // WebSocket endpoint
+#endif
+
+#define WS_RECONNECT_INTERVAL 5000   // Reconnect every 5 seconds if disconnected
+#define WS_PING_INTERVAL 30000       // Send heartbeat every 30 seconds
+#define WS_ENABLED true              // Enable WebSocket (set false to use HTTP only)
+
+// HTTP endpoint (fallback when WebSocket unavailable)
 #ifndef API_BASE_URL
-  #define API_BASE_URL "http://192.168.1.73:3000"  // Change to your server URL
+  #define API_BASE_URL "http://YOUR_SERVER_IP:8787"  // Change to your server URL (Cloudflare Workers backend)
 #endif
 
 #ifndef API_DEFAULT_KEY
