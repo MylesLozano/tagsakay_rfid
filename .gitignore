@@ -3,6 +3,7 @@ node_modules/
 /backend/node_modules/
 esp32
 esp32.ino
+# TagSakay_Fixed_Complete.ino
 
 # Build outputs
 dist/

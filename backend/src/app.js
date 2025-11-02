@@ -16,6 +16,15 @@ import userRoutes from "./routes/userRoutes.js";
 const app = express();
 const PORT = SERVER_CONFIG.PORT;
 
+// Configure trust proxy settings
+if (process.env.NODE_ENV === "production") {
+  // In production, trust first proxy
+  app.set("trust proxy", 1);
+} else {
+  // In development, trust all proxies (for VS Code port forwarding)
+  app.set("trust proxy", true);
+}
+
 // Setup morgan to stream to winston
 const stream = {
   // Use the http level from winston
