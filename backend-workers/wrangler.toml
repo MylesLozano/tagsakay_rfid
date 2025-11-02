@@ -15,6 +15,16 @@ routes = [
 [env.staging]
 name = "tagsakay-api-staging"
 
+# Durable Objects for WebSocket connections
+[[durable_objects.bindings]]
+name = "DEVICE_CONNECTIONS"
+class_name = "DeviceConnection"
+script_name = "tagsakay-api"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["DeviceConnection"]
+
 # Bindings (if using D1, KV, R2, etc. - optional)
 # [[d1_databases]]
 # binding = "DB"

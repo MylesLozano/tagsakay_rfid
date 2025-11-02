@@ -1,8 +1,11 @@
 /*
- * TagSakay RFID Scanner - Production Ready Version
+ * TagSakay RFID Scanner - Production Ready Version with WebSocket
  * 
  * Modular architecture with comprehensive error handling,
- * state management, and automatic recovery
+ * state management, automatic recovery, and real-time WebSocket communication
+ * 
+ * Version: 3.0.0
+ * Features: WebSocket + HTTP fallback, Durable Objects integration
  */
 
 #include "Config.h"
@@ -12,6 +15,7 @@
 #include "KeypadModule.h"
 #include "UARTModule.h"
 #include "ApiModule.h"
+#include "WebSocketModule.h"
 
 // Configuration instances (definitions)
 WiFiConfig wifiConfig = {
@@ -22,7 +26,7 @@ WiFiConfig wifiConfig = {
 };
 
 ServerConfig serverConfig = {
-  "http://192.168.1.73:3000",
+  "http://192.168.1.73:8787",  // Cloudflare Workers backend (HTTP fallback)
   "de271a_09e103534510b7bf7700d847994c8c6c3433e4214598912db1773a4108df1852",
   10000,
   "Entrance Gate"
@@ -73,10 +77,12 @@ NetworkModule networkModule;
 RFIDModule rfidModule;
 KeypadModule keypadModule;
 ApiModule apiModule;
+WebSocketModule wsModule;  // New: WebSocket module
 
 // System state
 bool systemReady = false;
 bool offlineMode = false;
+bool useWebSocket = WS_ENABLED;  // Can be toggled at runtime
 
 // Function declarations
 bool initializeSystem();
@@ -187,11 +193,43 @@ bool initializeSystem() {
   delay(500);
 
   // 6. Initialize API Client
-  Serial.println("[6/6] Initializing API...");
+  Serial.println("[6/7] Initializing API...");
   updateStatusSection("Connecting API...", TFT_YELLOW);
   
   if (!apiModule.initialize(serverConfig.baseUrl, serverConfig.apiKey, deviceId)) {
     handleSystemError("API", "Initialization failed");
+    allSuccess = false;
+    systemStatus.apiConnected = false;
+  } else {
+    updateStatusSection("API: OK", TFT_GREEN);
+    systemStatus.apiConnected = true;
+  }
+  delay(500);
+
+  // 7. Initialize WebSocket (if WiFi connected and enabled)
+  Serial.println("[7/7] Initializing WebSocket...");
+  if (useWebSocket && systemStatus.wifiConnected) {
+    updateStatusSection("Connecting WS...", TFT_YELLOW);
+    
+    // Set up WebSocket callbacks
+    wsModule.setOnScanResponse(handleScanResponse);
+    wsModule.setOnConfigUpdate(handleConfigUpdate);
+    wsModule.setOnConnectionStatus(handleWSConnectionStatus);
+    
+    // Initialize WebSocket connection
+    wsModule.begin(deviceId);
+    updateStatusSection("WS: Connecting", TFT_YELLOW);
+    
+    Serial.println("[WS] WebSocket module initialized");
+    Serial.println("[WS] Real-time communication enabled");
+  } else if (!useWebSocket) {
+    Serial.println("[WS] WebSocket disabled - using HTTP only");
+    updateStatusSection("WS: Disabled", TFT_ORANGE);
+  } else {
+    Serial.println("[WS] WebSocket unavailable - no WiFi");
+    updateStatusSection("WS: Offline", TFT_ORANGE);
+  }
+  delay(500);
     offlineMode = true;
     allSuccess = false;
     systemStatus.apiConnected = false;
@@ -254,6 +292,11 @@ void loop(void) {
     checkSerialCommands();
     delay(100);
     return;
+  }
+
+  // WebSocket loop (maintains connection, handles messages)
+  if (useWebSocket && wsModule.isConnected()) {
+    wsModule.loop();
   }
 
   // Check network connection and attempt reconnection
@@ -358,8 +401,21 @@ void handleRFIDScanning() {
       handleRFIDLoop();  // Use legacy function for registration logic
     } else {
       // Normal scanning mode
-      if (!offlineMode && apiModule.isInitialized()) {
-        // Send to backend
+      // Try WebSocket first (if enabled and connected)
+      if (useWebSocket && wsModule.isConnected()) {
+        Serial.println("[WS] Sending scan via WebSocket");
+        wsModule.sendScan(tagId, deviceConfig.location);
+        
+        // Show processing message
+        updateStatusSection("PROCESSING...", TFT_YELLOW);
+        updateScanSection(tagId, "PROCESSING", "Sending to server", TFT_YELLOW);
+        
+        // Response will be handled by handleScanResponse callback
+      } 
+      // Fallback to HTTP if WebSocket not available
+      else if (!offlineMode && apiModule.isInitialized()) {
+        Serial.println("[HTTP] Sending scan via HTTP (WebSocket unavailable)");
+        // Send to backend via HTTP
         String response;
         if (apiModule.sendScan(tagId, response)) {
           Serial.println("[API] Scan sent successfully");
@@ -483,6 +539,114 @@ void checkSerialCommands() {
       if (registrationMode) {
         indicateRegistrationMode();
       }
+    }
+  }
+}
+
+// ===================================
+// WebSocket Callback Functions
+// ===================================
+
+/**
+ * Callback when scan response received from WebSocket
+ */
+void handleScanResponse(JsonDocument& doc) {
+  if (doc["success"]) {
+    bool isRegistered = doc["scan"]["isRegistered"] | false;
+    String tagId = doc["scan"]["tagId"] | "";
+    
+    if (isRegistered && doc.containsKey("user")) {
+      // Registered user
+      String userName = doc["user"]["name"] | "Unknown";
+      String userRole = doc["user"]["role"] | "";
+      
+      Serial.println("✅ Registered: " + userName + " (" + userRole + ")");
+      
+      // Update display
+      updateStatusSection("REGISTERED", TFT_GREEN);
+      updateScanSection(tagId, userName, "Welcome!", TFT_GREEN);
+      updateFooter("Access granted: " + userName);
+      
+      // Send to LED matrix
+      sendToLEDMatrix("WELCOME", userName.substring(0, 8), "");
+      
+      // Reset API failure count
+      apiModule.resetFailureCount();
+      
+    } else {
+      // Unregistered tag
+      Serial.println("❌ Unregistered tag: " + tagId);
+      
+      updateStatusSection("UNREGISTERED", TFT_ORANGE);
+      updateScanSection(tagId, "NOT REGISTERED", "Please register", TFT_ORANGE);
+      updateFooter("Unregistered: " + tagId.substring(0, 8));
+      
+      // Send to LED matrix
+      sendToLEDMatrix("UNREG", tagId.substring(0, 8), "");
+    }
+  } else {
+    // Error occurred
+    String error = doc["error"] | "Unknown error";
+    Serial.println("❌ Error: " + error);
+    
+    updateStatusSection("ERROR", TFT_RED);
+    updateScanSection("", "ERROR", error, TFT_RED);
+    updateFooter("Scan error: " + error);
+    
+    sendToLEDMatrix("ERROR", error.substring(0, 8), "");
+  }
+}
+
+/**
+ * Callback when config update received from WebSocket
+ */
+void handleConfigUpdate(JsonDocument& doc) {
+  if (doc.containsKey("config")) {
+    bool regMode = doc["config"]["registrationMode"] | false;
+    
+    // Update local registration mode
+    registrationMode = regMode;
+    deviceConfig.registrationMode = regMode;
+    
+    Serial.println("⚙️ Config updated from server:");
+    Serial.println("  - Registration Mode: " + String(regMode ? "ON" : "OFF"));
+    
+    // Update display
+    if (regMode) {
+      indicateRegistrationMode();
+      updateFooter("Registration mode enabled");
+    } else {
+      indicateReady();
+      updateFooter("Normal scanning mode");
+    }
+    
+    // Send to LED matrix
+    sendToLEDMatrix("CONFIG", regMode ? "REG ON" : "REG OFF", "");
+  }
+}
+
+/**
+ * Callback when WebSocket connection status changes
+ */
+void handleWSConnectionStatus(bool connected) {
+  if (connected) {
+    Serial.println("🔌 WebSocket connected - real-time mode active");
+    updateStatusSection("WS: Connected", TFT_GREEN);
+    updateFooter("Real-time mode active");
+    
+    // Mark system as online
+    offlineMode = false;
+    systemStatus.offlineMode = false;
+    
+  } else {
+    Serial.println("🔌 WebSocket disconnected - falling back to HTTP");
+    updateStatusSection("WS: Disconnected", TFT_ORANGE);
+    updateFooter("Using HTTP fallback");
+    
+    // Don't mark as offline if API is still available
+    if (!apiModule.isInitialized()) {
+      offlineMode = true;
+      systemStatus.offlineMode = true;
     }
   }
 }

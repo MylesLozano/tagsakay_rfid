@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import authService from "../services/auth";
 import type { LoginCredentials } from "../services/auth";
@@ -12,23 +12,66 @@ const credentials = ref<LoginCredentials>({
 const loading = ref(false);
 const error = ref("");
 const showPassword = ref(false);
+const rateLimited = ref(false);
+const retryAfter = ref("");
+const accountLocked = ref(false);
 
 const login = async () => {
   loading.value = true;
   error.value = "";
+  rateLimited.value = false;
+  accountLocked.value = false;
 
   try {
     const response = await authService.login(credentials.value);
     authService.saveUserData(response);
     router.push("/dashboard");
   } catch (err: any) {
-    error.value =
-      err.response?.data?.message ||
-      "Login failed. Please check your credentials.";
+    // Handle rate limiting (429)
+    if (err.response?.status === 429) {
+      rateLimited.value = true;
+      const retryAfterValue = err.response.data?.retryAfter || "later";
+      retryAfter.value = retryAfterValue;
+      error.value = `Too many login attempts. Please try again ${retryAfterValue}.`;
+
+      // Auto-clear rate limit message after retry time
+      if (retryAfterValue.includes("seconds")) {
+        const seconds = parseInt(retryAfterValue);
+        if (!isNaN(seconds)) {
+          setTimeout(() => {
+            rateLimited.value = false;
+            error.value = "";
+          }, seconds * 1000);
+        }
+      }
+    }
+    // Handle account lockout (403)
+    else if (err.response?.status === 403) {
+      accountLocked.value = true;
+      error.value =
+        err.message ||
+        "Account is temporarily locked. Please contact support or try again later.";
+    }
+    // Handle validation errors (400)
+    else if (err.response?.status === 400) {
+      error.value = err.message || "Invalid email or password format.";
+    }
+    // Generic error
+    else {
+      error.value =
+        err.message || "Login failed. Please check your credentials.";
+    }
   } finally {
     loading.value = false;
   }
 };
+
+// Computed property for error alert styling
+const errorAlertClass = computed(() => {
+  if (rateLimited.value) return "alert-warning";
+  if (accountLocked.value) return "alert-error";
+  return "alert-error";
+});
 </script>
 
 <template>
@@ -39,7 +82,7 @@ const login = async () => {
           Login to TagSakay
         </h2>
 
-        <div class="alert alert-error mb-6" v-if="error">
+        <div :class="['alert', errorAlertClass, 'mb-6']" v-if="error">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             class="h-6 w-6 shrink-0 stroke-current"
@@ -47,13 +90,31 @@ const login = async () => {
             viewBox="0 0 24 24"
           >
             <path
+              v-if="!rateLimited"
               stroke-linecap="round"
               stroke-linejoin="round"
               stroke-width="2"
               d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
             />
+            <path
+              v-else
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
           </svg>
-          <span>{{ error }}</span>
+          <div class="flex-1">
+            <span>{{ error }}</span>
+            <div v-if="rateLimited" class="text-sm mt-1 opacity-80">
+              ⏱️ Rate limit will reset automatically. Please wait before trying
+              again.
+            </div>
+            <div v-if="accountLocked" class="text-sm mt-1 opacity-80">
+              🔒 Your account has been temporarily locked for security. Please
+              wait 15 minutes.
+            </div>
+          </div>
         </div>
 
         <form @submit.prevent="login" class="space-y-6">
@@ -144,13 +205,15 @@ const login = async () => {
             <button
               type="submit"
               class="btn btn-primary w-full text-base"
-              :disabled="loading"
+              :disabled="loading || rateLimited"
             >
               <span
                 class="loading loading-spinner loading-sm"
                 v-if="loading"
               ></span>
-              {{ loading ? "Logging in..." : "Login" }}
+              <span v-if="rateLimited && !loading">⏱️ Please Wait</span>
+              <span v-else-if="loading">Logging in...</span>
+              <span v-else>Login</span>
             </button>
           </div>
         </form>

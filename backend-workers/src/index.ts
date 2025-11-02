@@ -4,16 +4,20 @@ import { logger } from "hono/logger";
 import { prettyJSON } from "hono/pretty-json";
 import { createDb, type Database } from "./db";
 
-// Import routes (we'll create these next)
+// Import routes
 import authRoutes from "./routes/auth";
 import rfidRoutes from "./routes/rfid";
 import deviceRoutes from "./routes/device";
 import userRoutes from "./routes/user";
 import apiKeyRoutes from "./routes/apiKey";
 
+// Export Durable Object
+export { DeviceConnection } from "./durable-objects/DeviceConnection";
+
 type Bindings = {
   DATABASE_URL: string;
   JWT_SECRET: string;
+  DEVICE_CONNECTIONS: DurableObjectNamespace;
 };
 
 type Variables = {
@@ -59,6 +63,28 @@ app.get("/health", (c) => {
     status: "healthy",
     timestamp: new Date().toISOString(),
   });
+});
+
+// WebSocket endpoint for ESP32 devices
+app.get("/ws/device", async (c) => {
+  const deviceId = c.req.query("deviceId");
+
+  if (!deviceId) {
+    return c.json(
+      {
+        success: false,
+        message: "Missing deviceId parameter",
+      },
+      400
+    );
+  }
+
+  // Get or create Durable Object for this device
+  const id = c.env.DEVICE_CONNECTIONS.idFromName(deviceId);
+  const stub = c.env.DEVICE_CONNECTIONS.get(id);
+
+  // Forward the request to the Durable Object
+  return stub.fetch(c.req.raw);
 });
 
 // Routes

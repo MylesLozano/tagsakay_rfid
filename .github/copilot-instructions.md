@@ -4,7 +4,7 @@
 
 TagSakay is an RFID tricycle queue management system with three core components:
 
-- **Backend**: Express.js + PostgreSQL API server (`backend/`)
+- **Backend**: Cloudflare Workers + Neon PostgreSQL with OWASP security (`backend-workers/`)
 - **Frontend**: Vue.js + TypeScript admin interface (`frontend/`)
 - **ESP32**: RFID scanner firmware (`esp32.ino`) for physical devices
 
@@ -13,18 +13,31 @@ TagSakay is an RFID tricycle queue management system with three core components:
 1. **RFID Scanning**: ESP32 → Backend API → Database → Frontend Live Updates
 2. **Device Management**: Frontend → Backend → Device Registration/Status
 3. **User Authentication**: JWT-based with role-based access (SuperAdmin, Admin, Driver)
+4. **Security**: OWASP-compliant rate limiting, password hashing, input validation
 
 ## Critical Development Workflows
 
-### Database Management (Primary Interface)
+### Backend (Cloudflare - OWASP Compliant)
 
 ```bash
-# Essential commands - always use these instead of raw SQL
-npm run db:full        # Complete reset + init + seed (development)
-npm run db:reset       # Drop and recreate database
-npm run db:init        # Create schema only
-npm run db:seed        # Add test data only
-npm run migrate        # Run database migrations
+# Navigate to backend-workers
+cd backend-workers
+
+# Development server
+npm run dev              # Start Wrangler dev server on port 8787
+
+# Database operations (Drizzle ORM)
+npm run db:generate      # Generate migrations from schema
+npm run db:migrate       # Run migrations against Neon database
+npm run db:push          # Push schema changes directly (development only)
+npm run db:studio        # Open Drizzle Studio for database inspection
+
+# Testing
+node tests/rate-limit-test.js        # Test authentication rate limiting
+node tests/password-strength-test.js # Test password validation
+
+# Deployment
+npm run deploy           # Deploy to Cloudflare Workers
 ```
 
 ### Device Management
@@ -44,33 +57,72 @@ npm run test:api scanRfid '{"tagId":"ABC123","deviceId":"001122334455"}'
 
 ## Project-Specific Conventions
 
-### Model Associations (Critical Pattern)
+### Backend (Cloudflare) Conventions
 
-Models use **string-based foreign keys** with `constraints: false` to allow unregistered scans:
+**OWASP Security Implementation:**
 
-```javascript
-// In models/index.js - always follow this pattern
-RfidScan.belongsTo(Rfid, {
-  foreignKey: "rfidTagId",
-  targetKey: "tagId", // String-based, not numeric ID
-  as: "rfidTag",
-  constraints: false, // Allows scans of unregistered tags
+- **Password Hashing**: PBKDF2-SHA256 with 600,000 iterations (Web Crypto API)
+- **JWT Security**: 4-hour expiration, full claims (iss, aud, sub, iat, exp, nbf, jti)
+- **Rate Limiting**: Tiered (auth 5/min, API 100/min, device 3/hr), exponential backoff
+- **Account Lockout**: 5 failed attempts → 15-minute lock, account-based tracking
+- **Input Validation**: RFC 5321 email, RFID 4-32 alphanumeric, MAC address format
+- **Security Headers**: 10 OWASP-recommended headers (CSP, HSTS, X-Frame-Options, etc.)
+- **Security Logging**: 15 event types, 4 severity levels, structured JSON logs
+
+**Drizzle ORM Patterns:**
+
+```typescript
+// Schema definition in src/db/schema.ts
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  password: text("password").notNull(),
+  role: varchar("role", { length: 20 }).notNull().default("driver"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// Query patterns
+const [user] = await db
+  .select()
+  .from(users)
+  .where(eq(users.email, email))
+  .limit(1);
+await db.insert(users).values({ name, email, password }).returning();
+await db.update(users).set({ isActive: false }).where(eq(users.id, userId));
 ```
 
-### Device Authentication (Dual System)
+**Hono Framework Patterns:**
 
-- **New devices**: Use `Device` model with `deviceId` (MAC without colons)
-- **Legacy devices**: Use `ApiKey` model with `type: "device"`
-- Controllers check both sources in `deviceController.js`
+```typescript
+// Route definition
+app.post("/api/auth/login", authRateLimit, async (c) => {
+  const db = c.get("db");
+  const body = await c.req.json();
+  // ... validation and logic
+  return c.json({ success: true, data: { token } }, 201);
+});
+
+// Middleware usage
+app.use("/api/users/*", authMiddleware, requireRole("admin"));
+```
+
+**Environment Configuration:**
+
+- Uses `.dev.vars` for local development (NOT committed to git)
+- Uses `.env.example` as template (safe to commit)
+- Uses `wrangler.toml` for Cloudflare configuration
+- Database: Neon PostgreSQL (serverless, connection pooling)
 
 ### Environment Configuration
 
-- Backend: Uses `dotenv` with `.env` + `config/config.json` (Sequelize)
-- Frontend: Uses `VITE_API_URL` environment variable
-- ESP32: Hardcoded config in `esp32.ino` - modify before flashing
+- **Backend**: Uses `.dev.vars` (secrets) + `wrangler.toml` (config)
+- **Frontend**: Uses `VITE_API_URL` environment variable (port 8787)
+- **ESP32**: Hardcoded config in firmware - modify before flashing
 
 ### API Response Format (Enforce Consistency)
+
+The backend uses the following response format:
 
 ```javascript
 // Success response
@@ -82,39 +134,39 @@ res.json({
   },
 });
 
-// Error response
+// Error response (with validation errors)
 res.status(400).json({
   success: false,
-  message: "Error description",
-  error: error.message,
+  message: "Validation failed",
+  errors: ["Error 1", "Error 2"], // Optional array
 });
-```
 
-### Trust Proxy Configuration (Required)
-
-Express app MUST include proxy trust for VS Code port forwarding:
-
-```javascript
-// In app.js - prevents express-rate-limit errors
-if (process.env.NODE_ENV === "production") {
-  app.set("trust proxy", 1);
-} else {
-  app.set("trust proxy", true); // VS Code port forwarding
-}
+// Rate limiting response (429)
+res.status(429).json({
+  success: false,
+  message: "Too many requests",
+  retryAfter: "60 seconds",
+});
 ```
 
 ## Integration Points & External Dependencies
 
 ### Database Integration
 
-- **Primary**: PostgreSQL with Sequelize ORM
-- **Migration strategy**: Use `scripts/migrate-manager.js`, not Sequelize CLI
-- **Seeding**: Organized in `seeders/` with index orchestration
+- **Backend**: Neon PostgreSQL (serverless) with Drizzle ORM
+  - Connection pooling via `@neondatabase/serverless`
+  - Schema-first approach with TypeScript
+  - Migration files in `src/db/migrations/`
 
 ### Frontend-Backend Communication
 
 - **API Client**: `frontend/src/services/api.ts` with automatic JWT injection
-- **Error Handling**: 401 responses trigger automatic logout/redirect
+- **Base URL**: `http://localhost:8787`
+- **Error Handling**:
+  - 401 responses trigger automatic logout/redirect
+  - 429 responses show rate limiting UI with countdown timer
+  - 400 responses display validation errors
+- **Type Safety**: TypeScript `ApiResponse<T>` interface for all API calls
 - **Real-time**: Currently polling-based, WebSocket integration planned
 
 ### ESP32 Integration
@@ -125,19 +177,13 @@ if (process.env.NODE_ENV === "production") {
 
 ## Common Development Patterns
 
-### Adding New Controllers
+### Backend Development
 
-1. Create in `src/controllers/`
-2. Import models from `models/index.js`
-3. Add routes in `src/routes/`
-4. Update `src/app.js` route registration
-
-### Database Schema Changes
-
-1. Create migration in `migrations/`
-2. Update model in `src/models/`
-3. Update seeders if needed
-4. Run `npm run migrate`
+1. Update schema in `backend-workers/src/db/schema.ts`
+2. Generate migration: `npm run db:generate`
+3. Apply migration: `npm run db:migrate`
+4. Create/update routes in `backend-workers/src/routes/`
+5. Test with `npm run dev`
 
 ### Frontend Service Integration
 
@@ -148,11 +194,15 @@ if (process.env.NODE_ENV === "production") {
 
 ## Key Files for Context
 
-- `backend/src/models/index.js` - Model associations and database setup
-- `backend/src/controllers/deviceController.js` - Device registration/management patterns
-- `backend/scripts/db-manager.js` - Database operations orchestration
+- `backend-workers/src/index.ts` - Main Hono application entry point
+- `backend-workers/src/db/schema.ts` - Drizzle database schema
+- `backend-workers/src/middleware/rateLimit.ts` - Rate limiting and account lockout
+- `backend-workers/src/lib/auth.ts` - Password hashing and JWT generation
+- `backend-workers/tests/TEST_RESULTS.md` - Integration test results and security audit
 - `frontend/src/services/api.ts` - API client configuration
-- `esp32.ino` - Hardware integration reference
+- `frontend/src/views/Login.vue` - Login with rate limiting UI
+- `frontend/src/views/Register.vue` - Registration with password strength indicator
+- `TagSakay_Fixed_Complete/TagSakay_Fixed_Complete.ino` - Hardware integration reference
 
 ## Authentication & Security
 
@@ -162,11 +212,27 @@ if (process.env.NODE_ENV === "production") {
 - **Admin**: User/device/RFID management
 - **Driver**: Limited dashboard access
 
-### API Security
+### API Security (OWASP Compliant)
 
-- JWT tokens with configurable expiration
-- Rate limiting with proxy-aware configuration
-- API keys for device authentication with SHA256 hashing
-- CORS and Helmet middleware standard
+- **JWT tokens**: 4-hour expiration with full claim set (iss, aud, sub, iat, exp, nbf, jti)
+- **Password hashing**: PBKDF2-SHA256, 600,000 iterations, 16-byte salt
+- **Rate limiting**: 5 req/min (auth), 100 req/min (API), 3 req/hr (device registration)
+- **Account lockout**: 5 failed attempts → 15-minute lock
+- **Input validation**: RFC 5321 email, RFID 4-32 alphanumeric, MAC address format
+- **Security headers**: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, etc.
+- **Security logging**: 15 event types, 4 severity levels (LOW, MEDIUM, HIGH, CRITICAL)
+- **API keys**: SHA256 hashing for device authentication
+
+### Frontend Security Features
+
+- **Rate Limiting UI**: Countdown timer, disabled buttons during lockout
+- **Password Strength Indicator**: Real-time validation with 5 levels (0-4), color-coded
+- **Password Match Validation**: Visual feedback for confirm password field
+- **Error Handling**: User-friendly messages for validation, rate limiting, account lockout
+- **Client-Side Validation**: Matches backend OWASP rules exactly
 
 Always verify user permissions before database operations and maintain separation between user roles in controller logic.
+
+### Note
+
+If a markdown is created, always put it inside the markdowns folder.
