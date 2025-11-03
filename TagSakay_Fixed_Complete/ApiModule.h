@@ -5,21 +5,13 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "Config.h"
+#include "NetworkModule.h"  // Use ApiResponse from NetworkModule
 
 // Request retry configuration
 struct RetryConfig {
   int maxRetries;
   unsigned long retryDelay;
   bool exponentialBackoff;
-};
-
-// API response structure with more details
-struct ApiResponse {
-  bool success;
-  int httpCode;
-  String data;
-  String errorMessage;
-  unsigned long requestDuration;
 };
 
 class ApiModule {

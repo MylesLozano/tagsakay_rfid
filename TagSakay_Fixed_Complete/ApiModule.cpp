@@ -81,13 +81,14 @@ ApiResponse ApiModule::sendRequest(const String& method, const String& endpoint,
   }
   
   ApiResponse response;
-  response.success = false;
+  response.result = API_NETWORK_ERROR;
   response.httpCode = 0;
-  response.requestDuration = 0;
+  response.data = "";
+  response.error = "";
   
   if (!initialized) {
     LOG_ERROR("API not initialized");
-    response.errorMessage = "API not initialized";
+    response.error = "API not initialized";
     return response;
   }
   
@@ -121,49 +122,49 @@ ApiResponse ApiModule::sendRequest(const String& method, const String& endpoint,
     httpCode = http.sendRequest("DELETE");
   } else {
     LOG_ERROR("Unsupported HTTP method: " + method);
-    response.errorMessage = "Unsupported method";
+    response.error = "Unsupported method";
     http.end();
     return response;
   }
   
   lastRequestTime = millis();
-  response.requestDuration = lastRequestTime - startTime;
+  unsigned long requestDuration = lastRequestTime - startTime;
   totalRequests++;
-  totalResponseTime += response.requestDuration;
+  totalResponseTime += requestDuration;
   
   if (httpCode > 0) {
     response.data = http.getString();
     response.httpCode = httpCode;
     http.end();
     
-    LOG_DEBUG("Response: " + String(httpCode) + " (" + String(response.requestDuration) + "ms)");
+    LOG_DEBUG("Response: " + String(httpCode) + " (" + String(requestDuration) + "ms)");
     
     if (httpCode >= 200 && httpCode < 300) {
       // Validate response structure
       if (validateResponse(response.data)) {
-        response.success = true;
+        response.result = API_SUCCESS;
         consecutiveFailures = 0;
         successfulRequests++;
       } else {
-        response.success = false;
-        response.errorMessage = "Invalid response format";
+        response.result = API_JSON_ERROR;
+        response.error = "Invalid response format";
         consecutiveFailures++;
         failedRequests++;
       }
     } else {
-      response.success = false;
-      response.errorMessage = "HTTP " + String(httpCode);
+      response.result = API_HTTP_ERROR;
+      response.error = "HTTP " + String(httpCode);
       consecutiveFailures++;
       failedRequests++;
       LOG_WARNING("HTTP Error: " + String(httpCode));
     }
   } else {
-    response.errorMessage = http.errorToString(httpCode).c_str();
+    response.error = http.errorToString(httpCode).c_str();
     response.httpCode = httpCode;
     consecutiveFailures++;
     failedRequests++;
     http.end();
-    LOG_ERROR("Connection error: " + response.errorMessage);
+    LOG_ERROR("Connection error: " + response.error);
   }
   
   return response;
@@ -188,7 +189,7 @@ ApiResponse ApiModule::sendRequestWithRetry(const String& method, const String& 
     
     response = sendRequest(method, endpoint, payload, false);
     
-    if (response.success) {
+    if (response.result == API_SUCCESS) {
       if (attempt > 0) {
         LOG_INFO("Request succeeded after " + String(attempt) + " retries");
       }
@@ -205,8 +206,10 @@ ApiResponse ApiModule::sendRequestWithRetry(const String& method, const String& 
 ApiResponse ApiModule::sendScan(const String& tagId, const String& location) {
   if (!IS_VALID_TAG_ID(tagId)) {
     ApiResponse response;
-    response.success = false;
-    response.errorMessage = "Invalid tag ID";
+    response.result = API_JSON_ERROR;
+    response.error = "Invalid tag ID";
+    response.httpCode = 0;
+    response.data = "";
     return response;
   }
   
@@ -273,8 +276,10 @@ ApiResponse ApiModule::getRegistrationStatus() {
 ApiResponse ApiModule::sendQueueOverride(int queueNumber, const String& reason) {
   if (!IS_VALID_QUEUE_NUMBER(queueNumber)) {
     ApiResponse response;
-    response.success = false;
-    response.errorMessage = "Invalid queue number";
+    response.result = API_JSON_ERROR;
+    response.error = "Invalid queue number";
+    response.httpCode = 0;
+    response.data = "";
     return response;
   }
   
@@ -372,8 +377,10 @@ ApiResponse ApiModule::syncTime() {
 ApiResponse ApiModule::sendBatchScans(const String scans[], int count) {
   if (count == 0 || count > MAX_SCAN_QUEUE_SIZE) {
     ApiResponse response;
-    response.success = false;
-    response.errorMessage = "Invalid batch size";
+    response.result = API_JSON_ERROR;
+    response.error = "Invalid batch size";
+    response.httpCode = 0;
+    response.data = "";
     return response;
   }
   
@@ -434,10 +441,11 @@ float ApiModule::getSuccessRate() const {
 bool ApiModule::testEndpoint(const String& endpoint) {
   LOG_INFO("Testing endpoint: " + endpoint);
   ApiResponse response = sendRequest("GET", endpoint, "", false);
-  return response.success;
+  return response.result == API_SUCCESS;
 }
 
 String ApiModule::getLastError() const {
-  // Return the last error from the HTTPClient
-  return http.errorToString(http.getConnectTimeout()).c_str();
+  // Error information is now returned in ApiResponse.error field
+  // This method kept for backwards compatibility
+  return "";
 }

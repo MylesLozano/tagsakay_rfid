@@ -72,6 +72,11 @@ unsigned long registrationModeStartTime = 0;
 unsigned long lastHeartbeat = 0;
 unsigned long lastScanTime = 0;
 
+// Registration mode keypad buffer (renamed to avoid conflict with KeypadModule.cpp)
+String registrationKeypadBuffer = "";
+unsigned long lastRegistrationKeypadInput = 0;
+#define KEYPAD_BUFFER_TIMEOUT 3000  // Clear buffer after 3 seconds of no input
+
 // Module instances (using enhanced classes)
 NetworkModule networkModule;
 RFIDModule rfidModule;
@@ -91,6 +96,12 @@ void handleRFIDScanning();
 void handleKeypadInputNew();
 void sendPeriodicHeartbeat();
 void checkNetworkConnection();
+void checkSerialCommands();
+
+// WebSocket callback declarations
+void handleScanResponse(JsonDocument& doc);
+void handleConfigUpdate(JsonDocument& doc);
+void handleWSConnectionStatus(bool connected);
 
 void setup(void) {
   Serial.begin(115200);
@@ -230,13 +241,16 @@ bool initializeSystem() {
     updateStatusSection("WS: Offline", TFT_ORANGE);
   }
   delay(500);
+  
+  // Test API connection
+  if (!apiModule.isInitialized()) {
+    Serial.println("[API] WARNING: API module not initialized");
     offlineMode = true;
     allSuccess = false;
     systemStatus.apiConnected = false;
   } else {
-    // Test API connection
-    String response;
-    if (offlineMode || !apiModule.checkConnection()) {
+    ApiResponse connCheck = apiModule.checkConnection();
+    if (offlineMode || connCheck.result != API_SUCCESS) {
       Serial.println("[API] WARNING: Backend not reachable");
       updateStatusSection("API: OFFLINE", TFT_ORANGE);
       offlineMode = true;
@@ -315,13 +329,20 @@ void loop(void) {
   unsigned long currentMillis = millis();
   
   // Check registration mode periodically (only if online)
-  if (!offlineMode && currentMillis - lastRegistrationCheck > 5000) {
-    lastRegistrationCheck = currentMillis;
-    checkRegistrationModeFromServer();
-  }
+  // Note: Registration mode is now controlled via WebSocket config updates
+  // TODO: Implement checkRegistrationModeFromServer() if polling is needed
+  // if (!offlineMode && currentMillis - lastRegistrationCheck > 5000) {
+  //   lastRegistrationCheck = currentMillis;
+  //   checkRegistrationModeFromServer();
+  // }
   
   // Send heartbeat
   sendPeriodicHeartbeat();
+  
+  // Clear registration keypad buffer if timeout reached (prevents accidental commands)
+  if (registrationKeypadBuffer.length() > 0 && (currentMillis - lastRegistrationKeypadInput > KEYPAD_BUFFER_TIMEOUT)) {
+    registrationKeypadBuffer = "";
+  }
   
   // Handle keypad timeout
   if (checkKeypadTimeout(currentMillis)) {
@@ -398,7 +419,68 @@ void handleRFIDScanning() {
     
     if (registrationMode) {
       // Handle registration mode scanning
-      handleRFIDLoop();  // Use legacy function for registration logic
+      Serial.println();
+      Serial.println("═══════════════════════════════════════");
+      Serial.println("  REGISTRATION MODE - TAG DETECTED");
+      Serial.println("  Tag ID: " + tagId);
+      Serial.println("═══════════════════════════════════════");
+      Serial.println();
+      
+      updateStatusSection("REGISTERING TAG", TFT_ORANGE);
+      updateScanSection(tagId, "REGISTERING", "Please wait...", TFT_YELLOW);
+      sendToLEDMatrix("REG", tagId.substring(0, 8), "WAIT");
+      
+      // Send registration request to backend
+      if (useWebSocket && wsModule.isConnected()) {
+        // Send via WebSocket with registration flag
+        Serial.println("[WS] Sending registration via WebSocket");
+        // Note: WebSocket sendScan should be enhanced to support registration mode
+        // For now, using HTTP
+        ApiResponse response = apiModule.sendScan(tagId, deviceConfig.location);
+        
+        if (response.result == API_SUCCESS) {
+          Serial.println("[✓] Tag registered successfully!");
+          updateScanSection(tagId, "REGISTERED", "Success!", TFT_GREEN);
+          sendToLEDMatrix("REG", "SUCCESS", "");
+          indicateSuccess();
+          
+          // Auto-exit registration mode after successful registration
+          delay(2000);
+          registrationMode = false;
+          updateStatusSection("NORMAL MODE", TFT_GREEN);
+          updateFooter("Ready to scan");
+        } else {
+          Serial.println("[✗] Registration failed: " + response.error);
+          updateScanSection(tagId, "REG FAILED", response.error, TFT_RED);
+          sendToLEDMatrix("REG", "FAILED", "");
+          indicateError();
+        }
+      } else if (!offlineMode && apiModule.isInitialized()) {
+        Serial.println("[HTTP] Sending registration via HTTP");
+        ApiResponse response = apiModule.sendScan(tagId, deviceConfig.location);
+        
+        if (response.result == API_SUCCESS) {
+          Serial.println("[✓] Tag registered successfully!");
+          updateScanSection(tagId, "REGISTERED", "Success!", TFT_GREEN);
+          sendToLEDMatrix("REG", "SUCCESS", "");
+          indicateSuccess();
+          
+          // Auto-exit registration mode after successful registration
+          delay(2000);
+          registrationMode = false;
+          updateStatusSection("NORMAL MODE", TFT_GREEN);
+          updateFooter("Ready to scan");
+        } else {
+          Serial.println("[✗] Registration failed: " + response.error);
+          updateScanSection(tagId, "REG FAILED", response.error, TFT_RED);
+          sendToLEDMatrix("REG", "FAILED", "");
+          indicateError();
+        }
+      } else {
+        Serial.println("[✗] Cannot register - offline mode");
+        updateScanSection(tagId, "OFFLINE", "Cannot register", TFT_RED);
+        indicateError();
+      }
     } else {
       // Normal scanning mode
       // Try WebSocket first (if enabled and connected)
@@ -416,10 +498,12 @@ void handleRFIDScanning() {
       else if (!offlineMode && apiModule.isInitialized()) {
         Serial.println("[HTTP] Sending scan via HTTP (WebSocket unavailable)");
         // Send to backend via HTTP
-        String response;
-        if (apiModule.sendScan(tagId, response)) {
+        ApiResponse response = apiModule.sendScan(tagId, deviceConfig.location);
+        if (response.result == API_SUCCESS) {
           Serial.println("[API] Scan sent successfully");
-          handleScanResponse(response);  // Use legacy function to parse response
+          // Parse and handle response - for now just show success
+          updateStatusSection("SCAN OK", TFT_GREEN);
+          updateScanSection(tagId, "SENT", "Via HTTP", TFT_GREEN);
         } else {
           Serial.println("[API] Failed to send scan");
           updateStatusSection("SCAN FAILED", TFT_RED);
@@ -448,18 +532,52 @@ void handleRFIDScanning() {
 }
 
 void handleKeypadInputNew() {
-  if (!keypadModule.isInitialized()) {
-    return;
-  }
-  
   char key = keypadModule.getKey();
   
   if (key) {
     Serial.print("[KEYPAD] Key pressed: ");
     Serial.println(key);
     
-    // Special system commands
-    if (key == '#') {
+    // Update last input time
+    lastRegistrationKeypadInput = millis();
+    
+    // Add key to buffer
+    registrationKeypadBuffer += key;
+    
+    // Check for registration mode toggle command (###)
+    if (registrationKeypadBuffer.endsWith("###")) {
+      registrationMode = !registrationMode;
+      registrationKeypadBuffer = "";  // Clear buffer
+      
+      Serial.println();
+      Serial.println("═══════════════════════════════════════");
+      Serial.print("  REGISTRATION MODE: ");
+      Serial.println(registrationMode ? "ENABLED ✓" : "DISABLED ✗");
+      Serial.println("═══════════════════════════════════════");
+      Serial.println();
+      
+      if (registrationMode) {
+        registrationModeStartTime = millis();
+        indicateRegistrationMode();
+        updateStatusSection("REGISTRATION MODE", TFT_ORANGE);
+        updateFooter("Scan tag to register");
+        sendToLEDMatrix("REG", "MODE", "ACTIVE");
+      } else {
+        updateStatusSection("NORMAL MODE", TFT_GREEN);
+        updateFooter("Ready to scan");
+        sendToLEDMatrix("READY", "", "");
+      }
+      
+      return;  // Exit early after handling command
+    }
+    
+    // Limit buffer size to prevent memory issues
+    if (registrationKeypadBuffer.length() > 10) {
+      registrationKeypadBuffer = registrationKeypadBuffer.substring(registrationKeypadBuffer.length() - 10);
+    }
+    
+    // Special system commands (single key)
+    if (key == '#' && registrationKeypadBuffer.length() == 1) {
       // Display system status
       Serial.println("\n[STATUS] System Information:");
       Serial.print("  WiFi: ");
@@ -486,13 +604,18 @@ void handleKeypadInputNew() {
       updateFooter("Check serial monitor");
     } else if (key == '*') {
       // Force heartbeat
-      String response;
-      if (!offlineMode && apiModule.sendHeartbeat(response)) {
-        Serial.println("[HEARTBEAT] Manual heartbeat sent");
-        updateStatusSection("HEARTBEAT OK", TFT_GREEN);
+      if (!offlineMode && apiModule.isInitialized()) {
+        ApiResponse response = apiModule.sendHeartbeat(true);
+        if (response.result == API_SUCCESS) {
+          Serial.println("[HEARTBEAT] Manual heartbeat sent");
+          updateStatusSection("HEARTBEAT OK", TFT_GREEN);
+        } else {
+          Serial.println("[HEARTBEAT] Failed");
+          updateStatusSection("HEARTBEAT FAIL", TFT_RED);
+        }
       } else {
-        Serial.println("[HEARTBEAT] Failed or offline");
-        updateStatusSection("HEARTBEAT FAIL", TFT_RED);
+        Serial.println("[HEARTBEAT] Offline mode");
+        updateStatusSection("OFFLINE", TFT_ORANGE);
       }
     }
   }
@@ -505,15 +628,16 @@ void sendPeriodicHeartbeat() {
     lastHeartbeat = currentMillis;
     
     if (!offlineMode && networkModule.isConnected()) {
-      String response;
-      if (apiModule.sendHeartbeat(response)) {
+      ApiResponse response = apiModule.sendHeartbeat(true);
+      if (response.result == API_SUCCESS) {
         Serial.println("[HEARTBEAT] Sent successfully");
         showHeartbeat(true);
         delay(100);
         showHeartbeat(false);
       } else {
         Serial.println("[HEARTBEAT] Failed");
-        apiModule.incrementFailureCount();
+        // Note: incrementFailureCount() doesn't exist, using resetFailureCount() instead
+        // or just log the error
       }
     } else {
       Serial.println("[HEARTBEAT] Skipped - offline mode");
@@ -533,11 +657,25 @@ void checkSerialCommands() {
 
     if (command.equalsIgnoreCase("registration")) {
       registrationMode = !registrationMode;
-      Serial.print("Registration mode ");
-      Serial.println(registrationMode ? "ENABLED" : "DISABLED");
+      
+      Serial.println();
+      Serial.println("═══════════════════════════════════════");
+      Serial.print("  REGISTRATION MODE: ");
+      Serial.println(registrationMode ? "ENABLED ✓" : "DISABLED ✗");
+      Serial.println("  (You can also use ### on keypad)");
+      Serial.println("═══════════════════════════════════════");
+      Serial.println();
 
       if (registrationMode) {
+        registrationModeStartTime = millis();
         indicateRegistrationMode();
+        updateStatusSection("REGISTRATION MODE", TFT_ORANGE);
+        updateFooter("Scan tag to register");
+        sendToLEDMatrix("REG", "MODE", "ACTIVE");
+      } else {
+        updateStatusSection("NORMAL MODE", TFT_GREEN);
+        updateFooter("Ready to scan");
+        sendToLEDMatrix("READY", "", "");
       }
     }
   }

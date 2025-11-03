@@ -7,7 +7,7 @@ Write-Host "🧪 Testing User Endpoints" -ForegroundColor Cyan
 Write-Host "=" * 50
 
 # Step 1: Login as admin
-Write-Host "`n1️⃣ Login as admin..." -ForegroundColor Yellow
+Write-Host "` Login as admin..." -ForegroundColor Yellow
 $loginBody = @{
     email = "admin@tagsakay.com"
     password = "admin123"

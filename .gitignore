@@ -10,13 +10,17 @@ dist/
 dist-ssr/
 *.local
 
-# Environment variables
+# Environment variables (CRITICAL - Contains secrets!)
 .env
+.env.local
+.env.production
+.env.production.local
+.dev.vars
 *.env
+!.env.example
 
 # Logs
 logs/
-/backend/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -41,3 +45,16 @@ coverage/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Wrangler
+.wrangler/
+wrangler.toml.backup
+
+# ESP32 Compiled Files
+*.bin
+*.elf
+*.hex
+
+# Temporary development files with real credentials
+*_PRODUCTION.ino
+*_CREDENTIALS.*

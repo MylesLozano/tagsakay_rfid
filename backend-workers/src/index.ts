@@ -33,9 +33,12 @@ app.use(
   "*",
   cors({
     origin: [
-      "http://localhost:5173",
-      "https://tagsakay.com",
-      "https://www.tagsakay.com",
+      "http://localhost:5173", // Local Vue dev server
+      "http://localhost:8787", // Local Cloudflare Workers dev
+      "https://api.tagsakay.com", // Production API
+      "https://app.tagsakay.com", // Production frontend
+      "https://tagsakay.com", // Main domain
+      "https://www.tagsakay.com", // WWW subdomain
     ],
     credentials: true,
   })

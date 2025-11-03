@@ -4,6 +4,12 @@
 #include <Arduino.h>
 
 // =======================
+// Phase 1 Optimizations
+// =======================
+// Disable assertion strings to save flash (~7 KB)
+#define NDEBUG  // Disable assert() completely
+
+// =======================
 // ESP32 Pin Assignments
 // =======================
 
@@ -69,13 +75,13 @@
 // API Configuration
 // =======================
 
-// WebSocket endpoint (primary communication method)
+// PRODUCTION Configuration (uses custom domain api.tagsakay.com)
 #ifndef WS_HOST
-  #define WS_HOST "YOUR_SERVER_IP"  // Change to your server IP (e.g., "192.168.1.100")
+  #define WS_HOST "api.tagsakay.com"  // Production API domain
 #endif
 
 #ifndef WS_PORT
-  #define WS_PORT 8787  // Cloudflare Workers port
+  #define WS_PORT 443  // HTTPS/WSS standard port
 #endif
 
 #ifndef WS_PATH
@@ -85,19 +91,27 @@
 #define WS_RECONNECT_INTERVAL 5000   // Reconnect every 5 seconds if disconnected
 #define WS_PING_INTERVAL 30000       // Send heartbeat every 30 seconds
 #define WS_ENABLED true              // Enable WebSocket (set false to use HTTP only)
+#define USE_SECURE_WS true           // Production uses HTTPS/WSS (secure WebSocket)
 
 // HTTP endpoint (fallback when WebSocket unavailable)
 #ifndef API_BASE_URL
-  #define API_BASE_URL "http://YOUR_SERVER_IP:8787"  // Change to your server URL (Cloudflare Workers backend)
+  #define API_BASE_URL "https://api.tagsakay.com"  // Production API URL
 #endif
 
 #ifndef API_DEFAULT_KEY
-  #define API_DEFAULT_KEY ""  // Set your default API key here
+  #define API_DEFAULT_KEY ""  // Set your default API key here (or configure via Serial)
 #endif
 
 #define API_TIMEOUT_MS 5000
 #define API_RETRY_ATTEMPTS 3
 #define MAX_CONSECUTIVE_FAILURES 5
+
+// DEVELOPMENT Configuration (uncomment for local testing)
+// Comment out production config above and uncomment these lines:
+// #define WS_HOST "192.168.1.100"  // Replace with your local dev machine IP
+// #define WS_PORT 8787              // Local Cloudflare Workers dev port
+// #define USE_SECURE_WS false       // Local uses HTTP/WS (non-secure)
+// #define API_BASE_URL "http://192.168.1.100:8787"  // Local dev URL
 
 // =======================
 // Network Configuration
@@ -187,7 +201,8 @@
 #define LOG_LEVEL_INFO 1
 #define LOG_LEVEL_WARNING 2
 #define LOG_LEVEL_ERROR 3
-#define CURRENT_LOG_LEVEL LOG_LEVEL_INFO
+// Phase 1 Optimization: Reduced from LOG_LEVEL_INFO to LOG_LEVEL_ERROR (saves ~25 KB)
+#define CURRENT_LOG_LEVEL LOG_LEVEL_ERROR
 
 // =======================
 // Feature Flags
